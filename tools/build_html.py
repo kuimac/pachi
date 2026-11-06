@@ -60,6 +60,19 @@ ALIASES = (
 TODAY_ORDER = ["重要ポイント.md", "朝イチ狙い目.md", "台分析.md"]
 
 
+def site_name(name: str) -> str:
+    """GitHub Pages が配信できるパスにする。末尾の . と全角英字を避ける。"""
+    chars = []
+    for ch in name.rstrip("."):
+        code = ord(ch)
+        if 0xFF21 <= code <= 0xFF3A or 0xFF41 <= code <= 0xFF5A:
+            chars.append(chr(code - 0xFEE0))
+        else:
+            chars.append(ch)
+    cleaned = "".join(chars)
+    return cleaned or name
+
+
 def url_path(rel: str) -> str:
     parts = []
     for part in rel.split("/"):
@@ -452,18 +465,14 @@ def related_links(
     units_by_machine: dict[str, list[tuple[str, Path]]],
 ) -> str:
     links = []
-    guide = guides.get(stem)
-    spec = specs.get(stem)
+    key = site_name(stem)
+    guide = guides.get(key)
+    spec = specs.get(key)
     if guide and guide != from_file:
         links.append(f'<a href="{href(from_file, guide)}">攻略</a>')
     if spec and spec != from_file:
         links.append(f'<a href="{href(from_file, spec)}">スペック</a>')
-    machine = stem if stem in units_by_machine else None
-    if machine is None:
-        for name in units_by_machine:
-            if name.replace("ｅ", "e") == stem.replace("ｅ", "e"):
-                machine = name
-                break
+    machine = key if key in units_by_machine else None
     if machine:
         for number, page in units_by_machine[machine]:
             links.append(f'<a href="{href(from_file, page)}">{escape(number)}</a>')
@@ -821,10 +830,16 @@ def main() -> None:
             machines.append((machine_dir.name, units))
     machines.sort(key=lambda item: int(item[1][0][0]))
 
-    guide_out = {path.stem: OUT / "攻略情報" / f"{path.stem}.html" for path in guide_sources}
-    spec_out = {path.stem: OUT / "機種スペック" / f"{path.stem}.html" for path in spec_sources}
+    guide_out = {
+        site_name(path.stem): OUT / "攻略情報" / f"{site_name(path.stem)}.html" for path in guide_sources
+    }
+    spec_out = {
+        site_name(path.stem): OUT / "機種スペック" / f"{site_name(path.stem)}.html" for path in spec_sources
+    }
     units_by_machine = {
-        name: [(number, OUT / "楽園町田店" / name / number / "index.html") for number, _ in units]
+        site_name(name): [
+            (number, OUT / "楽園町田店" / site_name(name) / number / "index.html") for number, _ in units
+        ]
         for name, units in machines
     }
     unit_map_base = {
@@ -837,12 +852,12 @@ def main() -> None:
         return {number: href(dest, page) for number, page in unit_map_base.items()}
 
     for source in guide_sources:
-        dest = guide_out[source.stem]
+        dest = guide_out[site_name(source.stem)]
         build_markdown(
             source, dest, "攻略情報", "#guide", unit_map_for(dest), guide_out, spec_out, units_by_machine
         )
     for source in spec_sources:
-        dest = spec_out[source.stem]
+        dest = spec_out[site_name(source.stem)]
         build_markdown(
             source, dest, "機種スペック", "#spec", unit_map_for(dest), guide_out, spec_out, units_by_machine
         )
@@ -854,12 +869,13 @@ def main() -> None:
 
     index_machines = []
     for name, units in machines:
-        guide = guide_out.get(name)
-        spec = spec_out.get(name)
-        sibling_pages = units_by_machine[name]
+        key = site_name(name)
+        guide = guide_out.get(key)
+        spec = spec_out.get(key)
+        sibling_pages = units_by_machine[key]
         index_units = []
         for number, folder in units:
-            unit_page = OUT / "楽園町田店" / name / number / "index.html"
+            unit_page = OUT / "楽園町田店" / key / number / "index.html"
             csv_pages = []
             for csv_path in sorted(folder.glob("*.csv")):
                 csv_dest = unit_page.parent / f"{csv_path.stem}.html"
@@ -883,17 +899,23 @@ def main() -> None:
     guide_cards = []
     for source in guide_sources:
         text = source.read_text(encoding="utf-8")
-        units = units_by_machine.get(source.stem, [])
-        machine_id = next((f"m{index}" for index, (name, *_) in enumerate(index_machines) if name == source.stem), "")
-        guide_cards.append((title_of(text, source.stem), blurb(text), guide_out[source.stem], spec_out.get(source.stem), units, machine_id))
+        key = site_name(source.stem)
+        units = units_by_machine.get(key, [])
+        machine_id = next((f"m{index}" for index, (name, *_) in enumerate(index_machines) if site_name(name) == key), "")
+        guide_cards.append((title_of(text, source.stem), blurb(text), guide_out[key], spec_out.get(key), units, machine_id))
 
     spec_cards = []
     for source in spec_sources:
         text = source.read_text(encoding="utf-8")
-        units = units_by_machine.get(source.stem, [])
-        spec_cards.append((title_of(text, source.stem), blurb(text), spec_out[source.stem], guide_out.get(source.stem), units))
+        key = site_name(source.stem)
+        units = units_by_machine.get(key, [])
+        spec_cards.append((title_of(text, source.stem), blurb(text), spec_out[key], guide_out.get(key), units))
 
     build_index(today_pages, guide_cards, spec_cards, index_machines)
+    (OUT / ".nojekyll").write_text("", encoding="utf-8")
+    for path in sorted(OUT.rglob("*"), reverse=True):
+        if path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
     html_count = sum(1 for _ in OUT.rglob("*.html"))
     print(f"wrote {html_count} html files under {OUT}")
 

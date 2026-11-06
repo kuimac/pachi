@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Markdown と CSV を html/ 以下の閲覧用ページに変換する。"""
+"""Markdown と CSV を docs/ 以下の閲覧用ページに変換する。GitHub Pages はこのフォルダを公開する。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from urllib.parse import quote
 import markdown
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "html"
+OUT = ROOT / "docs"
 STORE = ROOT / "楽園町田店"
 
 PROB_COLS = {"大当り確率", "初当り確率", "チャンス中大当り確率", "確率"}

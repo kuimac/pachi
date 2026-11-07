@@ -241,6 +241,21 @@ table.dense td:last-child {
   padding: 2px 7px;
   background: var(--bg);
 }
+.card .tag-sumapachi { color: #1f4f7a; border-color: #b7cce0; background: #eaf2f8; }
+.card .tag-amadig { color: #9a3d5c; border-color: #e4c0cd; background: #f8ebf0; }
+.card .tag-light { color: #3f6b45; border-color: #c5d9c4; background: #eef5ee; }
+.card .tag-light-middle { color: #2f6b58; border-color: #b9d6cc; background: #e8f4ef; }
+.card .tag-middle { color: #8a5a12; border-color: #e2d0a8; background: #f8f1e0; }
+.card .tag-high-middle { color: #9c2f1a; border-color: #e2b7ab; background: #f8ebe7; }
+.card .tag-high-range { color: #6b2a14; border-color: #d4b09f; background: #f3e4dc; }
+.card .tag-yu-time { color: #0f6e6a; border-color: #a9d4d1; background: #e6f5f4; }
+.card .tag-jinbe { color: #1a5f8a; border-color: #aecfe3; background: #e7f2fa; }
+.card .tag-lt { color: #a3262c; border-color: #e0b0b3; background: #f8e8e9; }
+.card .tag-vst { color: #7a3048; border-color: #d8b6c0; background: #f6ebee; }
+.card .tag-st { color: #5a6230; border-color: #d0d4b0; background: #f3f4e8; }
+.card .tag-kakuhen { color: #1b6b43; border-color: #b4d7c3; background: #e8f5ee; }
+.card .tag-c-jitan { color: #455a75; border-color: #c0cbd8; background: #eef1f5; }
+.card .tag-tenjo { color: #4a433c; border-color: #cfc6bb; background: #f0ebe4; }
 .card .links { margin-top: 8px; font-size: 0.82rem; }
 .card .links a { margin-right: 8px; }
 

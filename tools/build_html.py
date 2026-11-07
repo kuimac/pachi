@@ -339,6 +339,30 @@ def table_value(text: str, label: str) -> str:
     return match.group(1).strip() if match else ""
 
 
+TAG_CLASS = {
+    "スマパチ": "sumapachi",
+    "甘デジ": "amadig",
+    "ライト": "light",
+    "ライトミドル": "light-middle",
+    "ミドル": "middle",
+    "ハイミドル": "high-middle",
+    "ハイレンジ": "high-range",
+    "遊タイム": "yu-time",
+    "ジンベェタイム": "jinbe",
+    "LT": "lt",
+    "V-ST": "vst",
+    "ST": "st",
+    "確変ループ": "kakuhen",
+    "c時短": "c-jitan",
+    "天井": "tenjo",
+}
+
+
+def tag_class(tag: str) -> str:
+    slug = TAG_CLASS.get(tag)
+    return f"tag tag-{slug}" if slug else "tag"
+
+
 def spec_tags(text: str) -> list[str]:
     """機種スペック MD からカード用の属性ラベルを抽出する。"""
     type_val = table_value(text, "タイプ")
@@ -1194,7 +1218,9 @@ def build_index(
         )
         tags_html = (
             '<div class="tags">'
-            + "".join(f'<span class="tag">{escape(tag)}</span>' for tag in tags)
+            + "".join(
+                f'<span class="{tag_class(tag)}">{escape(tag)}</span>' for tag in tags
+            )
             + "</div>"
             if tags
             else ""

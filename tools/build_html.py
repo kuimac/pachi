@@ -875,7 +875,8 @@ def exchange_profit_markup(compact: bool = False) -> str:
 
 
 def build_tools_page() -> Path:
-    dest = OUT / "tools" / "回転率.html"
+    """tools/ 直下を index にし、/tools/ が 404 にならないようにする。"""
+    dest = OUT / "tools" / "index.html"
     page = shell(
         dest,
         "計算ツール",
@@ -889,12 +890,31 @@ def build_tools_page() -> Path:
         wide=True,
     )
     write(dest, page)
+
+    # 旧URL（tools/回転率.html）からの誘導
+    legacy = OUT / "tools" / "回転率.html"
+    write(
+        legacy,
+        """<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="refresh" content="0; url=./">
+<link rel="canonical" href="./">
+<title>計算ツール</title>
+</head>
+<body>
+<p><a href="./">計算ツールへ</a></p>
+</body>
+</html>
+""",
+    )
     return dest
 
 
 def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False) -> str:
     items = [
-        ("計算", OUT / "tools" / "回転率.html", ""),
+        ("計算", OUT / "tools" / "index.html", ""),
         ("目次", OUT / "index.html", ""),
         ("日付", OUT / "index.html", "#dates"),
         ("攻略", OUT / "index.html", "#guide"),

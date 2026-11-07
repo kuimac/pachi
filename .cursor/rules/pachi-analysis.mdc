@@ -1,0 +1,16 @@
+---
+description: パチンコ店舗分析の制約（4円のみ・日付→店舗→詳細・実行後push）
+alwaysApply: true
+---
+
+# 店舗分析ルール
+
+- 対象は **4円パチンコのみ**（全台）。それ以外は扱わない。
+- 公開階層は **日付 → 店舗 → 詳細**。分析 MD は `YYYY-MM-DD/正規店名/` に置く。
+- 台 CSV は `正規店名/<機種名>/<台番号>/`。店舗・分析URL・別名は [`店舗一覧.md`](店舗一覧.md) が正本。
+- 別名は正規店名へ解決する（町田楽園→楽園町田店 など）。
+- モード別の手順は skill `pachi-run` に従う。rules に長い操作手順を増やさない。
+- 分析後は必ず `tools/publish.sh`（または同等の build → commit → push）まで行い、Pages 反映を完了とする。ローカル生成だけでは未完了。
+- PC Agent を優先。Cloud でログイン壁・CAPTCHA に当たったら無理に迂回せず、PC Remote 再実行を報告して止める。
+- 秘密情報・`.env` は commit しない。
+- Pages ベース: https://kuimac.github.io/pachi/

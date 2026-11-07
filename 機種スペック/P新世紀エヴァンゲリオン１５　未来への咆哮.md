@@ -40,9 +40,9 @@
 | 電サポ | （状態）チャンスタイム／インパクトモード中 | 液晶に右打ち指示が出ているあいだ |
 | 右打ちランプ | 盤面下部〜電チュー付近 | 点灯中は右打ち。液晶表示も必ず見る |
 
-![盤面ガイド](images/board-guide.svg)
+![盤面ガイド](images/board-guide.png)
 
-![右打ちまわり](images/right-hit-guide.svg)
+![右打ちまわり](images/right-hit-guide.png)
 
 - 役物が大きくても、打ち分けの最終判断は液晶の「右打ち」。
 

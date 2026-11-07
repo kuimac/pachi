@@ -38,9 +38,9 @@ RUSH突入＝LT。遊タイムなし。
 | 電サポ | （状態）RUSH／電サポ中 | 液晶「右打ち」表示中 |
 | 右打ちランプ | 電チュー付近〜盤面下 | 点灯中は右打ち |
 
-![盤面ガイド](images/board-guide.svg)
+![盤面ガイド](images/board-guide.png)
 
-![右打ちまわり](images/right-hit-guide.svg)
+![右打ちまわり](images/right-hit-guide.png)
 
 ## おすすめカスタム
 

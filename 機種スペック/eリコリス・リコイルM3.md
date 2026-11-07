@@ -66,9 +66,9 @@ ULTIMATE DRIVEの獲得出玉の目安は、6000個が50%、9000個が25%、9001
 | 電サポ | （状態）RUSH中など | 液晶「右打ち」表示中 |
 | 右打ちランプ | 電チュー付近〜盤面下 | 点灯中は右打ち |
 
-![盤面ガイド](images/board-guide.svg)
+![盤面ガイド](images/board-guide.png)
 
-![右打ちまわり](images/right-hit-guide.svg)
+![右打ちまわり](images/right-hit-guide.png)
 
 ## おすすめカスタム
 

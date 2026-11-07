@@ -549,10 +549,7 @@ def rotation_calc_markup(compact: bool = False) -> str:
     </label>
     <label class="calc-field">
       <span>現在スタート</span>
-      <div class="calc-row">
-        <input id="calc-current" type="number" inputmode="decimal" step="1" min="0" placeholder="例 138" autocomplete="off">
-        <button type="button" class="calc-btn primary" data-add-current="125" title="現在スタートに125を足す">+125</button>
-      </div>
+      <input id="calc-current" type="number" inputmode="decimal" step="1" min="0" placeholder="例 138" autocomplete="off">
     </label>
   </div>
   <div class="calc-result" aria-live="polite">
@@ -620,14 +617,6 @@ def rotation_calc_markup(compact: bool = False) -> str:
     el.addEventListener('change', render);
   }});
 
-  document.querySelectorAll('[data-add-current]').forEach((btn) => {{
-    btn.addEventListener('click', () => {{
-      const base = num(current) ?? 0;
-      current.value = String(base + Number(btn.dataset.addCurrent));
-      current.focus();
-      render();
-    }});
-  }});
   document.querySelectorAll('[data-add-balls]').forEach((btn) => {{
     btn.addEventListener('click', () => {{
       const base = num(balls) ?? 0;
@@ -883,7 +872,7 @@ def build_tools_page() -> Path:
         crumb(dest, [("目次", OUT / "index.html", ""), ("計算ツール", None)]),
         f"""
 <h1>計算ツール</h1>
-<p class="intro">回転率の実測と、4パチ交換率ごとの期待収支を出します。</p>
+<p class="intro">回転率の実測と、4パチ交換率ごとの期待収支を出します。使った玉数は +125 で足せます。</p>
 {rotation_calc_markup(compact=False)}
 {exchange_profit_markup(compact=False)}
 """,

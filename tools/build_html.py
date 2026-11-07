@@ -110,6 +110,29 @@ def date_label(iso: str) -> str:
     return f"{int(match.group(2))}月{int(match.group(3))}日"
 
 
+def analysis_datetime(text: str) -> str | None:
+    """本文先頭の『分析日時: …』を返す。無ければ None。"""
+    match = re.search(r"^分析日時:\s*(.+)$", text, re.M)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def analysis_time_label(text: str, day: str) -> str:
+    """カード等に出す日時。分析日時があればそれを使い、なければ日付だけ。"""
+    stamped = analysis_datetime(text)
+    if stamped:
+        # 「2026-11-07 01:33（Asia/Tokyo）」→「11月7日 01:33」
+        match = re.match(
+            r"(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}:\d{2})",
+            stamped,
+        )
+        if match:
+            return f"{int(match.group(2))}月{int(match.group(3))}日 {match.group(4)}"
+        return stamped
+    return date_label(day)
+
+
 def discover_day_stores() -> list[tuple[str, str, Path]]:
     """(日付, 店舗, フォルダ) を新しい日付順で返す。同一日内は店舗名昇順。"""
     by_date: dict[str, list[tuple[str, str, Path]]] = {}
@@ -266,7 +289,13 @@ def blurb(text: str, limit: int = 150) -> str:
     for line in text.splitlines():
         if line.startswith("##"):
             break
-        if line.startswith("#") or line.startswith("|") or line.startswith("- ") or not line.strip():
+        if (
+            line.startswith("#")
+            or line.startswith("|")
+            or line.startswith("- ")
+            or line.startswith("分析日時:")
+            or not line.strip()
+        ):
             continue
         lines.append(line.strip())
     summary = " ".join(lines) or section_prose(text, "総評")
@@ -812,7 +841,7 @@ if (q) q.addEventListener('input', () => {{
 def build_store_page(
     day: str,
     store: str,
-    detail_pages: list[tuple[str, str, Path]],
+    detail_pages: list[tuple[str, str, Path, str]],
     machines: list[tuple[str, Path | None, Path | None, list[tuple[str, Path, dict[str, str]]]]],
 ) -> Path:
     dest = OUT / day / store / "index.html"
@@ -826,13 +855,15 @@ def build_store_page(
         )
 
     detail_html = "".join(
-        card(date_label(day), label, summary, page, f"{label} {summary}")
-        for label, summary, page in detail_pages
+        card(when, label, summary, page, f"{label} {summary}")
+        for label, summary, page, when in detail_pages
     )
+    times = [when for *_, when in detail_pages if when != date_label(day)]
+    intro_when = times[0] if times else date_label(day)
     machine_html = machine_sections_html(dest, machines)
     body = f"""
 <h1>{escape(store)}</h1>
-<p class="intro">{escape(date_label(day))}の判断と、この店舗の台データです。</p>
+<p class="intro">分析日時 {escape(intro_when)} の判断と、この店舗の台データです。</p>
 <input class="search" id="q" type="search" placeholder="台番号、機種名（なのは、鬼がかり、1088）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
 <p class="section-label" id="details">判断</p>
@@ -860,14 +891,14 @@ def build_store_page(
     return dest
 
 
-def build_date_page(day: str, store_cards: list[tuple[str, str, Path]]) -> Path:
+def build_date_page(day: str, store_cards: list[tuple[str, str, Path, str]]) -> Path:
     dest = OUT / day / "index.html"
 
     cards = []
-    for store, summary, page in store_cards:
+    for store, summary, page, when in store_cards:
         cards.append(
             f'<a class="card" data-find="{escape(store)}" href="{href(dest, page)}">'
-            f'<span class="kicker">{escape(date_label(day))}</span><h3>{escape(store)}</h3>'
+            f'<span class="kicker">{escape(when)}</span><h3>{escape(store)}</h3>'
             f"<p>{escape(summary)}</p></a>"
         )
     body = f"""
@@ -888,17 +919,17 @@ def build_date_page(day: str, store_cards: list[tuple[str, str, Path]]) -> Path:
 
 
 def build_index(
-    date_cards: list[tuple[str, str, Path]],
+    date_cards: list[tuple[str, str, Path, str]],
     guide_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
     spec_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
 ) -> None:
     dest = OUT / "index.html"
 
     date_html = []
-    for day, summary, page in date_cards:
+    for day, summary, page, when in date_cards:
         date_html.append(
             f'<a class="card" data-find="{escape(day)} {escape(summary)}" href="{href(dest, page)}">'
-            f'<span class="kicker">分析日</span><h3>{escape(date_label(day))}</h3>'
+            f'<span class="kicker">分析日時</span><h3>{escape(when)}</h3>'
             f"<p>{escape(summary)}</p></a>"
         )
 
@@ -1070,9 +1101,9 @@ def main() -> None:
     for day, store, folder in day_stores:
         stores_by_day.setdefault(day, []).append((day, store, folder))
 
-    date_cards: list[tuple[str, str, Path]] = []
+    date_cards: list[tuple[str, str, Path, str]] = []
     for day, entries in stores_by_day.items():
-        store_cards: list[tuple[str, str, Path]] = []
+        store_cards: list[tuple[str, str, Path, str]] = []
         for _, store, folder in entries:
             detail_sources = [folder / name for name in DETAIL_ORDER if (folder / name).exists()]
             for path in sorted(folder.glob("*.md")):
@@ -1080,7 +1111,7 @@ def main() -> None:
                     detail_sources.append(path)
 
             units_by_machine = units_by_store_machine.get(store, {})
-            detail_pages: list[tuple[str, str, Path]] = []
+            detail_pages: list[tuple[str, str, Path, str]] = []
             for source in detail_sources:
                 dest = OUT / day / store / f"{source.stem}.html"
                 build_markdown(
@@ -1097,17 +1128,26 @@ def main() -> None:
                     units_by_machine,
                 )
                 text = source.read_text(encoding="utf-8")
-                detail_pages.append((source.stem, blurb(text), dest))
+                when = analysis_time_label(text, day)
+                detail_pages.append((source.stem, blurb(text), dest, when))
 
             store_page = build_store_page(
                 day, store, detail_pages, store_machine_index.get(store, [])
             )
-            summary = " · ".join(label for label, _, _ in detail_pages) or "詳細なし"
-            store_cards.append((store, summary, store_page))
+            summary = " · ".join(label for label, *_ in detail_pages) or "詳細なし"
+            store_when = next(
+                (when for *_, when in detail_pages if when != date_label(day)),
+                date_label(day),
+            )
+            store_cards.append((store, summary, store_page, store_when))
 
         day_page = build_date_page(day, store_cards)
-        store_names_text = " · ".join(store for store, _, _ in store_cards)
-        date_cards.append((day, store_names_text, day_page))
+        store_names_text = " · ".join(store for store, *_ in store_cards)
+        day_when = next(
+            (when for *_, when in store_cards if when != date_label(day)),
+            date_label(day),
+        )
+        date_cards.append((day, store_names_text, day_page, day_when))
 
     guide_cards = []
     for source in guide_sources:

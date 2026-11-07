@@ -369,10 +369,12 @@ def spec_tags(text: str) -> list[str]:
     def is_absent(val: str) -> bool:
         return bool(re.search(r"非搭載|なし|無し|^[-—]$", val.strip()))
 
-    if re.search(r"遊タイム|ジンベェタイム", type_val):
+    if "遊タイム" in type_val:
         add("遊タイム")
     elif yu_val and not is_absent(yu_val):
         add("遊タイム")
+    if "ジンベェタイム" in type_val:
+        add("ジンベェタイム")
 
     if lt_val and is_absent(lt_val):
         pass

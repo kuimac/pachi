@@ -389,6 +389,112 @@ summary::-webkit-details-marker { color: var(--accent); }
   padding: 14px;
 }
 
+.calc {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px 12px;
+  margin: 0 0 16px;
+  box-shadow: var(--shadow);
+}
+.calc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 14px;
+  margin-bottom: 12px;
+}
+.calc-head h2 {
+  font-size: 1.08rem;
+  margin: 0;
+}
+.calc-formula {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.calc-formula code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+}
+.calc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.calc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.calc-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+.calc-field input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: var(--accent);
+}
+.calc-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.calc-row input { flex: 1 1 auto; min-width: 0; }
+.calc-btn {
+  appearance: none;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.calc-btn:hover { border-color: var(--accent); color: var(--accent); }
+.calc-btn.primary {
+  background: var(--nav);
+  border-color: var(--nav);
+  color: #f6f1e8;
+}
+.calc-btn.primary:hover { color: #ffd7a8; }
+.calc-result {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+.calc-result .stat.good b { color: var(--good); }
+.calc-result .stat.bad b { color: var(--bad); }
+.calc-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.calc-more {
+  margin: -6px 0 18px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 800px) {
+  .calc-grid,
+  .calc-result { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 800px) {
   body { font-size: 15.5px; }
   h1 { font-size: 1.4rem; }

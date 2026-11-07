@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>回転率計算</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body class="">
+<header class="top">
+  <a class="brand" href="../index.html">控え</a>
+  <nav><a href="%E5%9B%9E%E8%BB%A2%E7%8E%87.html">回転率</a><a href="../index.html">目次</a><a href="../index.html#dates">日付</a><a href="../index.html#guide">攻略</a><a href="../index.html#spec">スペック</a></nav>
+</header>
+<main>
+  <p class="crumb"><a href="../index.html">目次</a> / 回転率計算</p>
+  
+<h1>回転率計算</h1>
+<p class="intro">初期スタート・使った玉数・現在スタートから、1000円あたりの回転数を出します。現在スタートは +125 ボタンで足せます。</p>
+
+<section class="calc" id="rotation-calc" aria-labelledby="calc-title">
+  <div class="calc-head">
+    <h2 id="calc-title">回転率計算</h2>
+    <p class="calc-formula"><code>(現在スタート − 初期スタート) ÷ (玉数 ÷ 250)</code></p>
+  </div>
+  <div class="calc-grid">
+    <label class="calc-field">
+      <span>初期スタート</span>
+      <input id="calc-initial" type="number" inputmode="decimal" step="1" min="0" placeholder="例 120" autocomplete="off">
+    </label>
+    <label class="calc-field">
+      <span>使った玉数</span>
+      <div class="calc-row">
+        <input id="calc-balls" type="number" inputmode="decimal" step="1" min="0" placeholder="例 250" autocomplete="off">
+        <button type="button" class="calc-btn" data-add-balls="250" title="1000円分（250玉）">+250</button>
+      </div>
+    </label>
+    <label class="calc-field">
+      <span>現在スタート</span>
+      <div class="calc-row">
+        <input id="calc-current" type="number" inputmode="decimal" step="1" min="0" placeholder="例 138" autocomplete="off">
+        <button type="button" class="calc-btn primary" data-add-current="125" title="現在スタートに125を足す">+125</button>
+      </div>
+    </label>
+  </div>
+  <div class="calc-result" aria-live="polite">
+    <div class="stat">
+      <b id="calc-rate">—</b>
+      <span>1000円あたり回転数</span>
+    </div>
+    <div class="stat">
+      <b id="calc-diff">—</b>
+      <span>増えたスタート</span>
+    </div>
+    <div class="stat">
+      <b id="calc-units">—</b>
+      <span>使った1000円単位</span>
+    </div>
+  </div>
+  <p class="calc-note">通常時だけ数える。電サポ中は入れない。4円・100円25玉なら、玉250＝現金1000円。</p>
+</section>
+<script>
+(() => {
+  const initial = document.getElementById('calc-initial');
+  const balls = document.getElementById('calc-balls');
+  const current = document.getElementById('calc-current');
+  const rateEl = document.getElementById('calc-rate');
+  const diffEl = document.getElementById('calc-diff');
+  const unitsEl = document.getElementById('calc-units');
+  if (!initial || !balls || !current || !rateEl) return;
+
+  const num = (el) => {
+    const v = el.value.trim();
+    if (v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const fmt = (n, digits = 1) => {
+    if (!Number.isFinite(n)) return '—';
+    const fixed = n.toFixed(digits);
+    return fixed.replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1');
+  };
+
+  const render = () => {
+    const a = num(initial);
+    const b = num(balls);
+    const c = num(current);
+    if (a === null || b === null || c === null || b <= 0) {
+      rateEl.textContent = '—';
+      diffEl.textContent = '—';
+      unitsEl.textContent = '—';
+      rateEl.parentElement.classList.remove('good', 'bad');
+      return;
+    }
+    const diff = c - a;
+    const units = b / 250;
+    const rate = diff / units;
+    diffEl.textContent = fmt(diff, 1);
+    unitsEl.textContent = fmt(units, 2);
+    rateEl.textContent = fmt(rate, 1);
+    rateEl.parentElement.classList.toggle('good', rate >= 18);
+    rateEl.parentElement.classList.toggle('bad', rate > 0 && rate < 16);
+  };
+
+  [initial, balls, current].forEach((el) => {
+    el.addEventListener('input', render);
+    el.addEventListener('change', render);
+  });
+
+  document.querySelectorAll('[data-add-current]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const base = num(current) ?? 0;
+      current.value = String(base + Number(btn.dataset.addCurrent));
+      current.focus();
+      render();
+    });
+  });
+  document.querySelectorAll('[data-add-balls]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const base = num(balls) ?? 0;
+      balls.value = String(base + Number(btn.dataset.addBalls));
+      balls.focus();
+      render();
+    });
+  });
+  render();
+})();
+</script>
+
+
+</main>
+
+<script>
+(() => {
+  const parse = (text) => {
+    const raw = (text || '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw === '—' || raw === '-' || raw === '－') return { n: null, s: '' };
+    const cleaned = raw
+      .replace(/,/g, '')
+      .replace(/[＋]/g, '+')
+      .replace(/[−－]/g, '-')
+      .replace(/円(\/千円|\/朝)?$/u, '')
+      .replace(/%$/u, '')
+      .replace(/個$/u, '')
+      .replace(/回$/u, '')
+      .replace(/G$/iu, '');
+    if (/^[+-]?\d+(\.\d+)?$/.test(cleaned)) return { n: Number(cleaned), s: raw };
+    return { n: null, s: raw.toLowerCase() };
+  };
+  const cellText = (td) => (td ? td.innerText || td.textContent || '' : '');
+  document.querySelectorAll('table').forEach((table) => {
+    const headRow = table.tHead && table.tHead.rows[0];
+    const body = table.tBodies[0];
+    if (!headRow || !body || body.rows.length < 2) return;
+    table.classList.add('sortable');
+    [...headRow.cells].forEach((th, col) => {
+      if (th.colSpan > 1) return;
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      th.setAttribute('aria-sort', 'none');
+      const activate = () => {
+        const asc = th.dataset.sort !== 'asc';
+        [...headRow.cells].forEach((cell) => {
+          delete cell.dataset.sort;
+          cell.setAttribute('aria-sort', 'none');
+        });
+        th.dataset.sort = asc ? 'asc' : 'desc';
+        th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+        const rows = [...body.rows].map((row, index) => {
+          const value = parse(cellText(row.cells[col]));
+          return { row, index, value };
+        });
+        rows.sort((a, b) => {
+          const an = a.value.n;
+          const bn = b.value.n;
+          let cmp = 0;
+          if (an != null && bn != null) cmp = an - bn;
+          else if (an != null) cmp = -1;
+          else if (bn != null) cmp = 1;
+          else cmp = a.value.s.localeCompare(b.value.s, 'ja');
+          if (cmp === 0) cmp = a.index - b.index;
+          return asc ? cmp : -cmp;
+        });
+        rows.forEach(({ row }) => body.appendChild(row));
+      };
+      th.addEventListener('click', activate);
+      th.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

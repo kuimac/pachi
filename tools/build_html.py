@@ -186,6 +186,7 @@ def store_info_html(store: str, from_file: Path, stores_page: Path | None = None
         "営業時間",
         "朝の入場",
         "交換",
+        "交換所",
         "貸出",
         "台数",
         "駐車場",

@@ -1324,7 +1324,7 @@ def build_tools_page(
     page = shell(
         dest,
         "計算ツール",
-        crumb(dest, [("wop", OUT / "index.html", ""), ("計算ツール", None)]),
+        crumb(dest, [("Top", OUT / "index.html", ""), ("計算ツール", None)]),
         f"""
 <h1>計算ツール</h1>
 <p class="intro">回転率の実測と、4パチ交換率ごとの期待収支を出します。店舗ごとの交換率と機種名検索が使えます。</p>
@@ -1358,11 +1358,7 @@ def build_tools_page(
 
 def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False) -> str:
     items = [
-        ("計算", OUT / "tools" / "index.html", ""),
-        ("店舗", OUT / "index.html", "#stores"),
-        ("日付", OUT / "index.html", "#dates"),
-        ("攻略", OUT / "index.html", "#guide"),
-        ("スペック", OUT / "index.html", "#spec"),
+        ("Top", OUT / "index.html", ""),
     ]
     nav = "".join(
         f'<a href="{href(from_file, path, anchor)}">{label}</a>'
@@ -1370,6 +1366,7 @@ def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False
     )
     css = href(from_file, OUT / "style.css")
     wide_class = " wide" if wide else ""
+    crumb_html = f'\n  <p class="crumb">{crumb}</p>' if crumb.strip() else ""
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -1383,8 +1380,7 @@ def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False
   <a class="brand" href="{href(from_file, OUT / 'index.html')}">wop</a>
   <nav>{nav}</nav>
 </header>
-<main>
-  <p class="crumb">{crumb}</p>
+<main>{crumb_html}
   {body}
 </main>
 {table_sort_script()}
@@ -1735,7 +1731,7 @@ def build_csv_page(
         f'<p class="foot">元ファイル <code>{escape(str(source.relative_to(ROOT)))}</code></p>'
     )
     trail = [
-        ("wop", OUT / "index.html", ""),
+        ("Top", OUT / "index.html", ""),
         (store, store_page, ""),
         (machine, guide or spec or unit_page, ""),
         (number, unit_page, ""),
@@ -1823,7 +1819,7 @@ def build_unit_page(
         + "".join(pager)
     )
     trail = [
-        ("wop", OUT / "index.html", ""),
+        ("Top", OUT / "index.html", ""),
         (store, store_page, ""),
         (machine, guide or spec or (store_page or OUT / "index.html"), ""),
         (number, None),
@@ -1985,7 +1981,7 @@ def build_store_page(
         crumb(
             dest,
             [
-                ("wop", OUT / "index.html", ""),
+                ("Top", OUT / "index.html", ""),
                 ("店舗", OUT / "index.html", "#stores"),
                 (store, hub, ""),
                 (date_label(day), day_page, ""),
@@ -2054,7 +2050,7 @@ def build_store_hub(
         crumb(
             dest,
             [
-                ("wop", OUT / "index.html", ""),
+                ("Top", OUT / "index.html", ""),
                 ("店舗", OUT / "index.html", "#stores"),
                 (store, None),
             ],
@@ -2085,7 +2081,7 @@ def build_date_page(day: str, store_cards: list[tuple[str, str, Path, str]]) -> 
     page = shell(
         dest,
         date_label(day),
-        crumb(dest, [("wop", OUT / "index.html", ""), (date_label(day), None)]),
+        crumb(dest, [("Top", OUT / "index.html", ""), (date_label(day), None)]),
         body,
         wide=True,
     )
@@ -2331,7 +2327,6 @@ def build_index(
     )
 
     body = f"""
-<h1>wop</h1>
 <p class="intro">店舗または日付から詳細へ進みます。攻略とスペックは店舗共通です。</p>
 {index_toc}
 {tools_block}
@@ -2368,7 +2363,7 @@ def build_index(
 {store_cards_sort_script()}
 {kind_filter_script()}
 """
-    page = shell(dest, "wop", "wop", body, wide=True)
+    page = shell(dest, "wop", "", body, wide=True)
     write(dest, page)
 
 
@@ -2482,7 +2477,7 @@ def main() -> None:
         build_markdown(
             source,
             dest,
-            [("wop", OUT / "index.html", ""), ("攻略情報", OUT / "index.html", "#guide")],
+            [("Top", OUT / "index.html", ""), ("攻略情報", OUT / "index.html", "#guide")],
             unit_map_for(dest),
             guide_out,
             spec_out,
@@ -2493,7 +2488,7 @@ def main() -> None:
         build_markdown(
             source,
             dest,
-            [("wop", OUT / "index.html", ""), ("解説", OUT / "index.html", "#explain")],
+            [("Top", OUT / "index.html", ""), ("解説", OUT / "index.html", "#explain")],
             unit_map_for(dest),
             guide_out,
             spec_out,
@@ -2504,7 +2499,7 @@ def main() -> None:
         build_markdown(
             source,
             dest,
-            [("wop", OUT / "index.html", ""), ("機種スペック", OUT / "index.html", "#spec")],
+            [("Top", OUT / "index.html", ""), ("機種スペック", OUT / "index.html", "#spec")],
             unit_map_for(dest),
             guide_out,
             spec_out,
@@ -2532,7 +2527,7 @@ def main() -> None:
                     source,
                     dest,
                     [
-                        ("wop", OUT / "index.html", ""),
+                        ("Top", OUT / "index.html", ""),
                         ("店舗", OUT / "index.html", "#stores"),
                         (store, OUT / "店舗" / store / "index.html", ""),
                         (date_label(day), OUT / day / "index.html", ""),
@@ -2581,7 +2576,7 @@ def main() -> None:
         build_markdown(
             STORES_FILE,
             stores_dest,
-            [("wop", OUT / "index.html", ""), ("店舗一覧", None)],
+            [("Top", OUT / "index.html", ""), ("店舗一覧", None)],
             unit_map_for(stores_dest),
             guide_out,
             spec_out,

@@ -329,6 +329,76 @@ def section_prose(text: str, heading: str) -> str:
     return " ".join(lines)
 
 
+def table_value(text: str, label: str) -> str:
+    """Markdown 表の `| label | value |` から value を取る。"""
+    pattern = re.compile(
+        rf"^\|\s*{re.escape(label)}\s*\|\s*([^|]+?)\s*\|",
+        re.MULTILINE,
+    )
+    match = pattern.search(text)
+    return match.group(1).strip() if match else ""
+
+
+def spec_tags(text: str) -> list[str]:
+    """機種スペック MD からカード用の属性ラベルを抽出する。"""
+    type_val = table_value(text, "タイプ")
+    yu_val = table_value(text, "遊タイム")
+    lt_val = table_value(text, "ラッキートリガー") or table_value(text, "LT")
+    ceiling_val = table_value(text, "天井")
+
+    tags: list[str] = []
+
+    def add(tag: str) -> None:
+        if tag and tag not in tags:
+            tags.append(tag)
+
+    if "スマパチ" in type_val:
+        add("スマパチ")
+
+    for label in ("甘デジ", "ライトミドル", "ハイミドル", "ハイレンジ", "ミドル", "ライト"):
+        if label == "ライト" and any(t in tags for t in ("ライトミドル", "甘デジ")):
+            continue
+        if label == "ミドル" and any(
+            t in tags for t in ("ライトミドル", "ハイミドル", "ハイレンジ")
+        ):
+            continue
+        if label in type_val:
+            add(label)
+            break
+
+    def is_absent(val: str) -> bool:
+        return bool(re.search(r"非搭載|なし|無し|^[-—]$", val.strip()))
+
+    if re.search(r"遊タイム|ジンベェタイム", type_val):
+        add("遊タイム")
+    elif yu_val and not is_absent(yu_val):
+        add("遊タイム")
+
+    if lt_val and is_absent(lt_val):
+        pass
+    elif lt_val:
+        add("LT")
+    elif re.search(r"ラッキートリガー|(?<![A-Za-z])LT(?![A-Za-z])|LT\d", type_val):
+        add("LT")
+
+    if re.search(r"V-?ST", type_val):
+        add("V-ST")
+    elif re.search(r"(?<![A-Za-z])ST(?![A-Za-z])|ST機|ST（", type_val):
+        add("ST")
+    elif "確変ループ" in type_val:
+        add("確変ループ")
+
+    if re.search(r"c時短|ｃ時短", type_val):
+        add("c時短")
+
+    if ceiling_val and not is_absent(ceiling_val):
+        add("天井")
+    elif "天井" in type_val and "非搭載" not in type_val:
+        add("天井")
+
+    return tags[:6]
+
+
 def blurb(text: str, limit: int = 150) -> str:
     lines = []
     for line in text.splitlines():
@@ -1074,7 +1144,9 @@ def date_cards_sort_script() -> str:
 def build_index(
     store_cards: list[tuple[str, str, str, Path, str]],
     guide_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
-    spec_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
+    spec_cards: list[
+        tuple[str, str, Path, Path | None, list[tuple[str, Path]], list[str]]
+    ],
     store_regions: dict[str, str] | None = None,
     store_stations: dict[str, str] | None = None,
 ) -> None:
@@ -1111,15 +1183,24 @@ def build_index(
         )
 
     spec_html = []
-    for title, summary, page, guide, units in spec_cards:
+    for title, summary, page, guide, units, tags in spec_cards:
         extra = ""
         if guide:
             extra = f'<div class="links"><a href="{href(dest, guide)}">攻略</a></div>'
-        find = aliases_for(title) + " " + " ".join(num for num, _ in units)
+        find = " ".join(
+            [aliases_for(title), *tags, *(num for num, _ in units)]
+        )
+        tags_html = (
+            '<div class="tags">'
+            + "".join(f'<span class="tag">{escape(tag)}</span>' for tag in tags)
+            + "</div>"
+            if tags
+            else ""
+        )
         spec_html.append(
             f'<div class="card" data-find="{escape(find)}">'
             f'<a href="{href(dest, page)}"><span class="kicker">スペック</span><h3>{escape(title)}</h3>'
-            f"<p>{escape(summary)}</p></a>{extra}</div>"
+            f"<p>{escape(summary)}</p>{tags_html}</a>{extra}</div>"
         )
 
     body = f"""
@@ -1341,8 +1422,16 @@ def main() -> None:
         text = source.read_text(encoding="utf-8")
         key = site_name(source.stem)
         units = all_units_by_machine.get(key, [])
+        tags = [] if key in _spec_first else spec_tags(text)
         spec_cards.append(
-            (title_of(text, source.stem), blurb(text), spec_out[key], guide_out.get(key), units)
+            (
+                title_of(text, source.stem),
+                blurb(text),
+                spec_out[key],
+                guide_out.get(key),
+                units,
+                tags,
+            )
         )
 
     build_index(

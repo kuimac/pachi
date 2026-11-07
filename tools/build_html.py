@@ -984,9 +984,13 @@ def main() -> None:
         path.unlink()
 
     guide_sources = sorted((ROOT / "攻略情報").glob("*.md"))
+    _spec_first = ("パチンコ用語一覧", "オカルトパチンコ動作一覧")
     spec_sources = sorted(
         (ROOT / "機種スペック").glob("*.md"),
-        key=lambda path: (path.stem != "パチンコ用語一覧", path.stem),
+        key=lambda path: (
+            _spec_first.index(path.stem) if path.stem in _spec_first else len(_spec_first),
+            path.stem,
+        ),
     )
     day_stores = discover_day_stores()
     store_names = load_store_names()

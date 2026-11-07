@@ -7,6 +7,7 @@ import csv
 import json
 import os
 import re
+import shutil
 import unicodedata
 from html import escape, unescape
 from pathlib import Path
@@ -41,6 +42,7 @@ KINDS = [
     ("天井", "caution"),
     ("モード", "spec"),
     ("カスタム", "target"),
+    ("盤面", "spec"),
     ("打ち方", "target"),
     ("結論", "conclusion"),
     ("総評", "conclusion"),
@@ -1586,6 +1588,11 @@ def build_markdown(
     title = title_of(text, source.stem)
     fragment = markdown.markdown(text, extensions=["tables", "sane_lists"])
     fragment = re.sub(r'href="([^"]+?)\.md"', lambda match: f'href="{url_path(match.group(1))}.html"', fragment)
+    fragment = re.sub(
+        r'<p><img (alt="[^"]*" src="[^"]+") /></p>',
+        r'<figure class="panel-fig"><img \1 loading="lazy" /></figure>',
+        fragment,
+    )
     fragment = re.sub(r"^\s*<h1>.*?</h1>\s*", "", fragment, count=1, flags=re.S)
     toc_html, fragment = wrap_sections(fragment)
     wide = is_wide(fragment)
@@ -2354,6 +2361,14 @@ def main() -> None:
         load_store_regions(),
         load_store_stations(),
     )
+    # 機種スペックの図解など、Markdown から参照する静的画像を docs へコピーする。
+    spec_images = ROOT / "機種スペック" / "images"
+    if spec_images.is_dir():
+        dest_images = OUT / "機種スペック" / "images"
+        if dest_images.exists():
+            shutil.rmtree(dest_images)
+        shutil.copytree(spec_images, dest_images)
+
     (OUT / ".nojekyll").write_text("", encoding="utf-8")
     for path in sorted(OUT.rglob("*"), reverse=True):
         if path.is_dir() and not any(path.iterdir()):

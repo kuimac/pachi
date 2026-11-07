@@ -628,6 +628,7 @@ summary::-webkit-details-marker { color: var(--accent); }
 @media (max-width: 800px) {
   .calc-grid,
   .calc-grid-profit,
+  .calc-grid-store,
   .calc-result { grid-template-columns: 1fr; }
 }
 

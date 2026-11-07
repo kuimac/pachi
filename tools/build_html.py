@@ -642,17 +642,251 @@ def rotation_calc_markup(compact: bool = False) -> str:
 """
 
 
-def build_rotation_page() -> Path:
+def exchange_profit_markup(compact: bool = False) -> str:
+    """4パチ・交換率ごとの期待収支。等価ボーダーと実測回転率から表を作る。"""
+    note = (
+        "<p class=\"calc-note\">貸玉4円。交換単価は玉数から換算（28玉→約3.57円）。"
+        "各交換のボーダーは <code>等価ボーダー × √(4 ÷ 交換単価)</code>。"
+        "期待差玉は <code>回転数 × 250 × (1/ボーダー − 1/回転率)</code>。"
+        "機種スペックの等価ボーダーを入れる。</p>"
+        if not compact
+        else "<p class=\"calc-note\">4パチ。ボーダーは √換算。単位は玉（下段は円）。</p>"
+    )
+    spins_ui = ""
+    if not compact:
+        spins_ui = """
+    <div class="calc-presets" role="group" aria-label="回転数の目安">
+      <button type="button" class="calc-btn" data-set-spins="800">800回転（約4時間）</button>
+      <button type="button" class="calc-btn" data-set-spins="2000">2000回転（約10時間）</button>
+    </div>"""
+    return f"""
+<section class="calc" id="profit-calc" aria-labelledby="profit-title">
+  <div class="calc-head">
+    <h2 id="profit-title">4パチ 交換率別の期待収支</h2>
+    <p class="calc-formula"><code>差玉 = 回転数 × 250 × (1/ボーダー − 1/回転率)</code></p>
+  </div>
+  <div class="calc-grid calc-grid-profit">
+    <label class="calc-field">
+      <span>等価ボーダー</span>
+      <input id="profit-border" type="number" inputmode="decimal" step="0.1" min="1" placeholder="例 17.5" autocomplete="off">
+    </label>
+    <label class="calc-field">
+      <span>実測回転率（/1000円）</span>
+      <input id="profit-rate" type="number" inputmode="decimal" step="0.1" min="1" placeholder="例 18.0" autocomplete="off">
+    </label>
+    <label class="calc-field">
+      <span>通常回転数</span>
+      <div class="calc-row">
+        <input id="profit-spins" type="number" inputmode="decimal" step="1" min="1" value="800" autocomplete="off">
+        <button type="button" class="calc-btn" data-set-spins="800" title="800回転">800</button>
+        <button type="button" class="calc-btn" data-set-spins="2000" title="2000回転">2000</button>
+      </div>
+    </label>
+  </div>
+  {spins_ui}
+  <div class="calc-result" aria-live="polite">
+    <div class="stat">
+      <b id="profit-eq-border">—</b>
+      <span>等価ボーダー</span>
+    </div>
+    <div class="stat">
+      <b id="profit-ball-28">—</b>
+      <span>28玉の差玉</span>
+    </div>
+    <div class="stat">
+      <b id="profit-yen-28">—</b>
+      <span>28玉の収支円</span>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="profit-table" id="profit-table">
+      <thead>
+        <tr>
+          <th>回転率</th>
+          <th class="num">2.5円<br><small>40玉</small></th>
+          <th class="num">3.0円<br><small>33玉</small></th>
+          <th class="num">3.3円<br><small>30玉</small></th>
+          <th class="num">3.5円<br><small>28玉</small></th>
+          <th class="num">4.0円<br><small>25玉</small></th>
+        </tr>
+      </thead>
+      <tbody id="profit-body"></tbody>
+    </table>
+  </div>
+  <p class="calc-caption" id="profit-caption">通常時の期待収支一覧（単位: 玉 / 下段は円）</p>
+  {note}
+</section>
+<script>
+(() => {{
+  const borderEl = document.getElementById('profit-border');
+  const rateEl = document.getElementById('profit-rate');
+  const spinsEl = document.getElementById('profit-spins');
+  const body = document.getElementById('profit-body');
+  const eqBorder = document.getElementById('profit-eq-border');
+  const ball28 = document.getElementById('profit-ball-28');
+  const yen28 = document.getElementById('profit-yen-28');
+  const caption = document.getElementById('profit-caption');
+  if (!borderEl || !rateEl || !spinsEl || !body) return;
+
+  const EXCHANGES = [
+    {{ label: '2.5', balls: 40 }},
+    {{ label: '3.0', balls: 33 }},
+    {{ label: '3.3', balls: 30 }},
+    {{ label: '3.5', balls: 28 }},
+    {{ label: '4.0', balls: 25 }}
+  ];
+  const RATES = [16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+
+  const num = (el) => {{
+    const v = el.value.trim();
+    if (v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }};
+
+  const yenOf = (balls) => 100 / balls;
+
+  const borderAt = (borderEq, yen) => borderEq * Math.sqrt(4 / yen);
+
+  const netBalls = (spins, rate, border) => spins * 250 * (1 / border - 1 / rate);
+
+  const fmtBalls = (n) => {{
+    if (!Number.isFinite(n)) return '—';
+    const rounded = Math.round(n);
+    if (rounded > 0) return '+' + rounded.toLocaleString('ja-JP');
+    return rounded.toLocaleString('ja-JP');
+  }};
+
+  const fmtYen = (n) => {{
+    if (!Number.isFinite(n)) return '—';
+    const rounded = Math.round(n);
+    if (rounded > 0) return '+' + rounded.toLocaleString('ja-JP') + '円';
+    return rounded.toLocaleString('ja-JP') + '円';
+  }};
+
+  const cellClass = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+
+  const render = () => {{
+    const borderEq = num(borderEl);
+    const rate = num(rateEl);
+    const spins = num(spinsEl);
+    body.innerHTML = '';
+    if (eqBorder) eqBorder.textContent = borderEq != null ? String(borderEq) : '—';
+    if (ball28) ball28.textContent = '—';
+    if (yen28) yen28.textContent = '—';
+    if (ball28) ball28.parentElement.classList.remove('good', 'bad');
+    if (yen28) yen28.parentElement.classList.remove('good', 'bad');
+
+    if (borderEq == null || borderEq <= 0 || spins == null || spins <= 0) {{
+      body.innerHTML = '<tr><td colspan="6">等価ボーダーと回転数を入れると表が出ます。</td></tr>';
+      return;
+    }}
+    if (caption) {{
+      const hours = spins / 200;
+      caption.textContent = `通常時 ${{spins}} 回転（約${{hours}}時間）の期待収支一覧（単位: 玉 / 下段は円）`;
+    }}
+
+    if (rate != null && rate > 0) {{
+      const b28 = borderAt(borderEq, yenOf(28));
+      const n28 = netBalls(spins, rate, b28);
+      const y28 = n28 * yenOf(28);
+      if (ball28) {{
+        ball28.textContent = fmtBalls(n28);
+        ball28.parentElement.classList.toggle('good', n28 > 0);
+        ball28.parentElement.classList.toggle('bad', n28 < 0);
+      }}
+      if (yen28) {{
+        yen28.textContent = fmtYen(y28);
+        yen28.parentElement.classList.toggle('good', y28 > 0);
+        yen28.parentElement.classList.toggle('bad', y28 < 0);
+      }}
+    }}
+
+    const highlight = rate != null && rate > 0 ? rate : null;
+    const rows = [...RATES];
+    if (highlight != null && !rows.some((r) => Math.abs(r - highlight) < 0.05)) {{
+      rows.push(highlight);
+      rows.sort((a, b) => a - b);
+    }}
+
+    for (const r of rows) {{
+      const tr = document.createElement('tr');
+      const isHit = highlight != null && Math.abs(r - highlight) < 0.05;
+      if (isHit) tr.classList.add('is-today');
+      const th = document.createElement('th');
+      th.scope = 'row';
+      th.textContent = Number.isInteger(r) ? String(r) : r.toFixed(1);
+      if (isHit) th.textContent += ' ←実測';
+      tr.appendChild(th);
+      for (const ex of EXCHANGES) {{
+        const yen = yenOf(ex.balls);
+        const border = borderAt(borderEq, yen);
+        const ballsNet = netBalls(spins, r, border);
+        const yenNet = ballsNet * yen;
+        const td = document.createElement('td');
+        td.className = `num ${{cellClass(ballsNet)}}`;
+        td.innerHTML = `<span class="profit-balls">${{fmtBalls(ballsNet)}}</span>`
+          + `<span class="profit-yen">${{fmtYen(yenNet)}}</span>`;
+        td.title = `ボーダー ${{border.toFixed(2)}}`;
+        tr.appendChild(td);
+      }}
+      body.appendChild(tr);
+    }}
+  }};
+
+  [borderEl, rateEl, spinsEl].forEach((el) => {{
+    el.addEventListener('input', render);
+    el.addEventListener('change', render);
+  }});
+  document.querySelectorAll('[data-set-spins]').forEach((btn) => {{
+    btn.addEventListener('click', () => {{
+      spinsEl.value = btn.dataset.setSpins;
+      spinsEl.focus();
+      render();
+    }});
+  }});
+
+  // 上の回転率計算の結果を、あれば初期値に使う
+  const syncFromRotation = () => {{
+    const calcRate = document.getElementById('calc-rate');
+    if (!calcRate || rateEl.value.trim() !== '') return;
+    const text = calcRate.textContent.trim();
+    const n = Number(text);
+    if (Number.isFinite(n) && text !== '—') rateEl.value = String(n);
+  }};
+  const calcInputs = ['calc-initial', 'calc-balls', 'calc-current']
+    .map((id) => document.getElementById(id))
+    .filter(Boolean);
+  calcInputs.forEach((el) => el.addEventListener('input', () => {{
+    const calcRate = document.getElementById('calc-rate');
+    if (!calcRate) return;
+    const text = calcRate.textContent.trim();
+    const n = Number(text);
+    if (Number.isFinite(n) && text !== '—') {{
+      rateEl.value = String(n);
+      render();
+    }}
+  }}));
+  syncFromRotation();
+  render();
+}})();
+</script>
+"""
+
+
+def build_tools_page() -> Path:
     dest = OUT / "tools" / "回転率.html"
     page = shell(
         dest,
-        "回転率計算",
-        crumb(dest, [("目次", OUT / "index.html", ""), ("回転率計算", None)]),
+        "計算ツール",
+        crumb(dest, [("目次", OUT / "index.html", ""), ("計算ツール", None)]),
         f"""
-<h1>回転率計算</h1>
-<p class="intro">初期スタート・使った玉数・現在スタートから、1000円あたりの回転数を出します。現在スタートは +125 ボタンで足せます。</p>
+<h1>計算ツール</h1>
+<p class="intro">回転率の実測と、4パチ交換率ごとの期待収支を出します。</p>
 {rotation_calc_markup(compact=False)}
+{exchange_profit_markup(compact=False)}
 """,
+        wide=True,
     )
     write(dest, page)
     return dest
@@ -660,7 +894,7 @@ def build_rotation_page() -> Path:
 
 def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False) -> str:
     items = [
-        ("回転率", OUT / "tools" / "回転率.html", ""),
+        ("計算", OUT / "tools" / "回転率.html", ""),
         ("目次", OUT / "index.html", ""),
         ("日付", OUT / "index.html", "#dates"),
         ("攻略", OUT / "index.html", "#guide"),
@@ -1394,7 +1628,8 @@ def build_index(
     tools_block = (
         '<p class="section-label" id="tools">ツール</p>'
         f'{rotation_calc_markup(compact=True)}'
-        f'<p class="calc-more"><a href="{href(dest, tool_page)}">回転率ページを開く</a></p>'
+        f'{exchange_profit_markup(compact=True)}'
+        f'<p class="calc-more"><a href="{href(dest, tool_page)}">計算ツールを開く</a></p>'
     )
 
     body = f"""
@@ -1652,7 +1887,7 @@ def main() -> None:
             )
         )
 
-    build_rotation_page()
+    build_tools_page()
     build_index(
         index_store_cards,
         guide_cards,

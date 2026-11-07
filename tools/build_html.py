@@ -543,8 +543,8 @@ def rotation_calc_markup(compact: bool = False) -> str:
     <label class="calc-field">
       <span>使った玉数</span>
       <div class="calc-row">
-        <input id="calc-balls" type="number" inputmode="decimal" step="1" min="0" placeholder="例 250" autocomplete="off">
-        <button type="button" class="calc-btn" data-add-balls="250" title="1000円分（250玉）">+250</button>
+        <input id="calc-balls" type="number" inputmode="decimal" step="125" min="0" placeholder="例 250" autocomplete="off">
+        <button type="button" class="calc-btn" data-add-balls="125" title="125玉を足す">+125</button>
       </div>
     </label>
     <label class="calc-field">

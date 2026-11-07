@@ -153,6 +153,70 @@ def load_store_stations() -> dict[str, str]:
     return load_store_field("最寄り駅", guess_station)
 
 
+def load_store_profile(store: str) -> dict[str, str]:
+    """店舗一覧.md の1店舗分を {項目: 値} で返す。"""
+    profile: dict[str, str] = {}
+    if not STORES_FILE.exists():
+        return profile
+    current = ""
+    for line in STORES_FILE.read_text(encoding="utf-8").splitlines():
+        heading = re.match(r"^##\s+(.+)$", line.strip())
+        if heading:
+            current = heading.group(1).strip()
+            continue
+        if current != store:
+            continue
+        match = re.match(r"^-\s*([^:：]+)\s*[:：]\s*(.+)$", line.strip())
+        if match:
+            profile[match.group(1).strip()] = match.group(2).strip()
+    return profile
+
+
+def store_info_html(store: str, from_file: Path, stores_page: Path | None = None) -> str:
+    """店舗ページ用の基本情報ブロック。"""
+    profile = load_store_profile(store)
+    if not profile:
+        return ""
+    order = [
+        "地域",
+        "最寄り駅",
+        "住所",
+        "交通",
+        "電話",
+        "営業時間",
+        "朝の入場",
+        "交換",
+        "貸出",
+        "台数",
+        "駐車場",
+        "店舗URL",
+        "分析URL",
+    ]
+    rows = []
+    for key in order:
+        value = profile.get(key)
+        if not value:
+            continue
+        if key.endswith("URL") and value.startswith("http"):
+            cell = f'<a href="{escape(value, quote=True)}" rel="noopener" target="_blank">{escape(value)}</a>'
+        else:
+            cell = escape(value)
+        rows.append(f"<tr><th>{escape(key)}</th><td>{cell}</td></tr>")
+    if not rows:
+        return ""
+    more = ""
+    if stores_page is not None:
+        more = (
+            f'<p class="calc-note"><a href="{href(from_file, stores_page)}">'
+            "店舗一覧（別名・レート注記）</a></p>"
+        )
+    return (
+        '<section class="block spec"><h2>店舗情報</h2>'
+        f'<div class="table-wrap"><table>{"".join(rows)}</table></div>'
+        f"{more}</section>"
+    )
+
+
 def parse_lend_yen(value: str) -> float:
     """『100円/25玉』『4円』『500円/115玉』→ 1玉あたり円。"""
     ratio = re.search(r"(\d+(?:\.\d+)?)\s*円\s*/\s*(\d+)\s*玉", value)
@@ -500,6 +564,7 @@ def blurb(text: str, limit: int = 150) -> str:
     summary = " ".join(lines) or section_prose(text, "総評")
     summary = re.sub(r"\s+", " ", summary)
     summary = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", summary)
+    summary = summary.replace("**", "")
     if len(summary) > limit:
         return summary[: limit - 1] + "…"
     return summary
@@ -1895,9 +1960,11 @@ def build_store_page(
     times = [when for *_, when in detail_pages if when != date_label(day)]
     intro_when = times[0] if times else date_label(day)
     machine_html = machine_sections_html(dest, machines)
+    info = store_info_html(store, dest, OUT / "店舗一覧.html")
     body = f"""
 <h1>{escape(store)}</h1>
 <p class="intro">分析日時 {escape(intro_when)} の判断と、この店舗の台データです。</p>
+{info}
 <input class="search" id="q" type="search" placeholder="台番号、機種名（なのは、鬼がかり、1088）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
 <p class="section-label" id="details">判断</p>
@@ -2010,9 +2077,10 @@ def build_index(
 
     explain_html = []
     for title, summary, page in explain_cards:
+        kicker = "店舗" if "店舗" in title else "解説"
         explain_html.append(
             f'<a class="card" data-find="{escape(title)} {escape(summary)}" href="{href(dest, page)}">'
-            f'<span class="kicker">解説</span><h3>{escape(title)}</h3>'
+            f'<span class="kicker">{escape(kicker)}</span><h3>{escape(title)}</h3>'
             f"<p>{escape(summary)}</p></a>"
         )
 
@@ -2335,6 +2403,24 @@ def main() -> None:
         text = source.read_text(encoding="utf-8")
         key = site_name(source.stem)
         explain_cards.append((title_of(text, source.stem), blurb(text), explain_out[key]))
+
+    # 店舗一覧.md を公開ページにし、解説カード先頭に載せる。
+    if STORES_FILE.exists():
+        stores_dest = OUT / "店舗一覧.html"
+        build_markdown(
+            STORES_FILE,
+            stores_dest,
+            [("目次", OUT / "index.html", ""), ("店舗一覧", None)],
+            unit_map_for(stores_dest),
+            guide_out,
+            spec_out,
+            all_units_by_machine,
+        )
+        stores_text = STORES_FILE.read_text(encoding="utf-8")
+        explain_cards.insert(
+            0,
+            (title_of(stores_text, "店舗一覧"), blurb(stores_text), stores_dest),
+        )
 
     guide_cards = []
     for source in guide_sources:

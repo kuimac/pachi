@@ -219,5 +219,71 @@
 <p>遊タイム550回は深い。到達すれば1500個はほぼ確定だが、4500個ループへ進むのはその先の51%。天井狙いは残りが短い台に限ったほうがよい。楽曲数が多く、1回転ごとに曲と結果が変わるので、長時間の通常消化より、勝負所だけを集中して見る打ち方に合う。</p>
 <p>出典: P-WORLD、なな徹、パチ&amp;スロ必勝本、ユニバーサルエンターテインメント</p></section><div class="related"><a href="../%E6%94%BB%E7%95%A5%E6%83%85%E5%A0%B1/P%E3%83%89%E3%83%A9%E3%83%A0de%E9%9B%BB%E9%9F%B3%E9%83%A8%20%E8%B6%85%E3%83%89%E3%83%A9%E7%86%B14500Ver.html">攻略</a><a href="../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/P%E3%83%89%E3%83%A9%E3%83%A0de%E9%9B%BB%E9%9F%B3%E9%83%A8%20%E8%B6%85%E3%83%89%E3%83%A9%E7%86%B14500Ver/1071/index.html">1071</a><a href="../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/P%E3%83%89%E3%83%A9%E3%83%A0de%E9%9B%BB%E9%9F%B3%E9%83%A8%20%E8%B6%85%E3%83%89%E3%83%A9%E7%86%B14500Ver/1072/index.html">1072</a></div><p class="foot">元ファイル <code>機種スペック/Pドラムde電音部 超ドラ熱4500Ver.md</code></p>
 </main>
+
+<script>
+(() => {
+  const parse = (text) => {
+    const raw = (text || '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw === '—' || raw === '-' || raw === '－') return { n: null, s: '' };
+    const cleaned = raw
+      .replace(/,/g, '')
+      .replace(/[＋]/g, '+')
+      .replace(/[−－]/g, '-')
+      .replace(/円(\/千円|\/朝)?$/u, '')
+      .replace(/%$/u, '')
+      .replace(/個$/u, '')
+      .replace(/回$/u, '')
+      .replace(/G$/iu, '');
+    if (/^[+-]?\d+(\.\d+)?$/.test(cleaned)) return { n: Number(cleaned), s: raw };
+    return { n: null, s: raw.toLowerCase() };
+  };
+  const cellText = (td) => (td ? td.innerText || td.textContent || '' : '');
+  document.querySelectorAll('table').forEach((table) => {
+    const headRow = table.tHead && table.tHead.rows[0];
+    const body = table.tBodies[0];
+    if (!headRow || !body || body.rows.length < 2) return;
+    table.classList.add('sortable');
+    [...headRow.cells].forEach((th, col) => {
+      if (th.colSpan > 1) return;
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      th.setAttribute('aria-sort', 'none');
+      const activate = () => {
+        const asc = th.dataset.sort !== 'asc';
+        [...headRow.cells].forEach((cell) => {
+          delete cell.dataset.sort;
+          cell.setAttribute('aria-sort', 'none');
+        });
+        th.dataset.sort = asc ? 'asc' : 'desc';
+        th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+        const rows = [...body.rows].map((row, index) => {
+          const value = parse(cellText(row.cells[col]));
+          return { row, index, value };
+        });
+        rows.sort((a, b) => {
+          const an = a.value.n;
+          const bn = b.value.n;
+          let cmp = 0;
+          if (an != null && bn != null) cmp = an - bn;
+          else if (an != null) cmp = -1;
+          else if (bn != null) cmp = 1;
+          else cmp = a.value.s.localeCompare(b.value.s, 'ja');
+          if (cmp === 0) cmp = a.index - b.index;
+          return asc ? cmp : -cmp;
+        });
+        rows.forEach(({ row }) => body.appendChild(row));
+      };
+      th.addEventListener('click', activate);
+      th.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+  });
+})();
+</script>
+
 </body>
 </html>

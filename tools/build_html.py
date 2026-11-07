@@ -150,17 +150,42 @@ def load_store_stations() -> dict[str, str]:
     return load_store_field("最寄り駅", guess_station)
 
 
+def parse_lend_yen(value: str) -> float:
+    """『100円/25玉』『4円』『500円/115玉』→ 1玉あたり円。"""
+    ratio = re.search(r"(\d+(?:\.\d+)?)\s*円\s*/\s*(\d+)\s*玉", value)
+    if ratio:
+        yen = float(ratio.group(1))
+        balls = float(ratio.group(2))
+        if balls > 0:
+            return round(yen / balls, 4)
+    single = re.search(r"(\d+(?:\.\d+)?)\s*円", value)
+    if single:
+        return float(single.group(1))
+    return 4.0
+
+
 def load_store_exchanges() -> list[dict[str, object]]:
-    """店舗一覧の交換玉。未記載は28玉（東京4パチの標準）。"""
-    raw = load_store_field("交換", lambda _store: "28玉")
+    """店舗一覧の交換玉と貸出単価。未記載は28玉・4円。"""
+    raw_exchange = load_store_field("交換", lambda _store: "28玉")
+    raw_lend = load_store_field("貸出", lambda _store: "100円/25玉")
     stores: list[dict[str, object]] = []
-    for name, value in raw.items():
+    for name, value in raw_exchange.items():
         match = re.search(r"(\d+)\s*玉", value)
         balls = int(match.group(1)) if match else 28
         if balls not in (40, 33, 30, 28, 25):
             # 表に無い玉数はいちばん近い列へ寄せる
             balls = min((40, 33, 30, 28, 25), key=lambda n: abs(n - balls))
-        stores.append({"name": name, "balls": balls, "label": f"{balls}玉"})
+        lend_raw = raw_lend.get(name, "100円/25玉")
+        lend_yen = parse_lend_yen(lend_raw)
+        stores.append(
+            {
+                "name": name,
+                "balls": balls,
+                "label": f"{balls}玉",
+                "lend": lend_yen,
+                "lend_label": lend_raw.strip(),
+            }
+        )
     stores.sort(key=lambda row: str(row["name"]))
     return stores
 
@@ -711,17 +736,21 @@ def exchange_profit_markup(
     for store in stores:
         name = str(store["name"])
         balls = store["balls"]
+        lend = store.get("lend", 4.0)
+        lend_label = escape(str(store.get("lend_label", "100円/25玉")))
         store_options.append(
-            f'<option value="{escape(name)}" data-balls="{balls}">'
-            f"{escape(name)}（{balls}玉）</option>"
+            f'<option value="{escape(name)}" data-balls="{balls}" '
+            f'data-lend="{lend}" data-lend-label="{lend_label}">'
+            f"{escape(name)}（交換{balls}玉・貸出{lend_label}）</option>"
         )
     note = (
-        "<p class=\"calc-note\">貸玉4円。店舗を選ぶと交換率が入る（手で変えられる）。"
-        "各交換のボーダーは <code>等価ボーダー × √(4 ÷ 交換単価)</code>。"
-        "期待差玉は <code>回転数 × 250 × (1/ボーダー − 1/回転率)</code>。"
+        "<p class=\"calc-note\">店舗を選ぶと交換率と貸出価格が入る（手で変えられる）。"
+        "貸出価格を選んでいるときは <strong>貸出価格込み</strong> で計算する。"
+        "ボーダーは <code>等価ボーダー × √(貸出単価 ÷ 交換単価)</code>。"
+        "期待差玉は <code>回転数 × (1000÷貸出単価) × (1/ボーダー − 1/回転率)</code>。"
         "機種名で検索すると攻略情報の等価ボーダーが入る。</p>"
         if not compact
-        else "<p class=\"calc-note\">店舗で交換率を選べる。機種名検索可。単位は玉（下段は円）。</p>"
+        else "<p class=\"calc-note\">店舗で交換率・貸出が入り、貸出選択時は貸出価格込み。機種名検索可。</p>"
     )
     spins_ui = ""
     if not compact:
@@ -734,7 +763,7 @@ def exchange_profit_markup(
 <section class="calc" id="profit-calc" aria-labelledby="profit-title">
   <div class="calc-head">
     <h2 id="profit-title">4パチ 交換率別の期待収支</h2>
-    <p class="calc-formula"><code>差玉 = 回転数 × 250 × (1/ボーダー − 1/回転率)</code></p>
+    <p class="calc-formula" id="profit-formula"><code>差玉 = 回転数 × (1000÷貸出) × (1/ボーダー − 1/回転率)</code></p>
   </div>
   <div class="calc-grid calc-grid-store">
     <label class="calc-field">
@@ -749,6 +778,14 @@ def exchange_profit_markup(
         <option value="30">30玉（約3.33円）</option>
         <option value="28" selected>28玉（約3.57円）</option>
         <option value="25">25玉（4.0円・等価）</option>
+      </select>
+    </label>
+    <label class="calc-field">
+      <span>貸出価格</span>
+      <select id="profit-lend">
+        <option value="">未選択（貸玉4円・明記なし）</option>
+        <option value="4">4.0円（100円/25玉）</option>
+        <option value="4.3478">約4.35円（500円/115玉）</option>
       </select>
     </label>
   </div>
@@ -820,6 +857,7 @@ def exchange_profit_markup(
   const spinsEl = document.getElementById('profit-spins');
   const storeEl = document.getElementById('profit-store');
   const exchangeEl = document.getElementById('profit-exchange');
+  const lendEl = document.getElementById('profit-lend');
   const machineEl = document.getElementById('profit-machine');
   const suggestRoot = document.getElementById('profit-suggest');
   const suggestList = document.getElementById('profit-suggest-list');
@@ -831,6 +869,7 @@ def exchange_profit_markup(
   const focusBallsLabel = document.getElementById('profit-focus-balls-label');
   const focusYenLabel = document.getElementById('profit-focus-yen-label');
   const caption = document.getElementById('profit-caption');
+  const formulaEl = document.getElementById('profit-formula');
   const table = document.getElementById('profit-table');
   if (!borderEl || !rateEl || !spinsEl || !body || !exchangeEl) return;
 
@@ -855,8 +894,21 @@ def exchange_profit_markup(
   }};
 
   const yenOf = (balls) => 100 / balls;
-  const borderAt = (borderEq, yen) => borderEq * Math.sqrt(4 / yen);
-  const netBalls = (spins, rate, border) => spins * 250 * (1 / border - 1 / rate);
+  const selectedLend = () => {{
+    if (!lendEl || lendEl.value === '') return null;
+    const n = Number(lendEl.value);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }};
+  const lendYenOrDefault = () => selectedLend() ?? 4;
+  const lendIncluded = () => selectedLend() != null;
+  const borderAt = (borderEq, exchangeYen, lendYen) =>
+    borderEq * Math.sqrt(lendYen / exchangeYen);
+  const netBalls = (spins, rate, border, lendYen) =>
+    spins * (1000 / lendYen) * (1 / border - 1 / rate);
+  const lendLabelText = () => {{
+    if (!lendEl || !lendEl.selectedOptions[0] || lendEl.value === '') return '';
+    return lendEl.selectedOptions[0].textContent.trim();
+  }};
 
   const fmtBalls = (n) => {{
     if (!Number.isFinite(n)) return '—';
@@ -959,14 +1011,30 @@ def exchange_profit_markup(
     const spins = num(spinsEl);
     const focus = selectedBalls();
     const focusYenValue = yenOf(focus);
+    const lendYen = lendYenOrDefault();
+    const withLend = lendIncluded();
     body.innerHTML = '';
     if (eqBorder) eqBorder.textContent = borderEq != null ? String(borderEq) : '—';
     if (focusBalls) focusBalls.textContent = '—';
     if (focusYen) focusYen.textContent = '—';
     if (focusBalls) focusBalls.parentElement.classList.remove('good', 'bad');
     if (focusYen) focusYen.parentElement.classList.remove('good', 'bad');
-    if (focusBallsLabel) focusBallsLabel.textContent = `${{focus}}玉の差玉`;
-    if (focusYenLabel) focusYenLabel.textContent = `${{focus}}玉の収支円`;
+    if (focusBallsLabel) {{
+      focusBallsLabel.textContent = withLend
+        ? `${{focus}}玉の差玉（貸出価格込み）`
+        : `${{focus}}玉の差玉`;
+    }}
+    if (focusYenLabel) {{
+      focusYenLabel.textContent = withLend
+        ? `${{focus}}玉の収支円（貸出価格込み）`
+        : `${{focus}}玉の収支円`;
+    }}
+    if (formulaEl) {{
+      const lendTxt = withLend ? lendYen.toFixed(2).replace(/\\.0+$/, '').replace(/(\\..*?)0+$/, '$1') : '4';
+      formulaEl.innerHTML = withLend
+        ? `<code>差玉 = 回転数 × (1000÷${{lendTxt}}) × (1/ボーダー − 1/回転率)</code> <strong>貸出価格込み</strong>`
+        : `<code>差玉 = 回転数 × 250 × (1/ボーダー − 1/回転率)</code>`;
+    }}
     markFocusColumn();
 
     if (borderEq == null || borderEq <= 0 || spins == null || spins <= 0) {{
@@ -976,12 +1044,15 @@ def exchange_profit_markup(
     if (caption) {{
       const hours = spins / 200;
       const storeName = storeEl && storeEl.value ? storeEl.value + '・' : '';
-      caption.textContent = `通常時 ${{spins}} 回転（約${{hours}}時間）の期待収支一覧（単位: 玉 / 下段は円） / 選択 ${{storeName}}${{focus}}玉`;
+      const lendNote = withLend
+        ? ` / 貸出価格込み（${{lendLabelText() || (lendYen + '円')}}）`
+        : '';
+      caption.textContent = `通常時 ${{spins}} 回転（約${{hours}}時間）の期待収支一覧（単位: 玉 / 下段は円） / 選択 ${{storeName}}${{focus}}玉${{lendNote}}`;
     }}
 
     if (rate != null && rate > 0) {{
-      const borderFocus = borderAt(borderEq, focusYenValue);
-      const nFocus = netBalls(spins, rate, borderFocus);
+      const borderFocus = borderAt(borderEq, focusYenValue, lendYen);
+      const nFocus = netBalls(spins, rate, borderFocus, lendYen);
       const yFocus = nFocus * focusYenValue;
       if (focusBalls) {{
         focusBalls.textContent = fmtBalls(nFocus);
@@ -1013,8 +1084,8 @@ def exchange_profit_markup(
       tr.appendChild(th);
       for (const ex of EXCHANGES) {{
         const yen = yenOf(ex.balls);
-        const border = borderAt(borderEq, yen);
-        const ballsNet = netBalls(spins, r, border);
+        const border = borderAt(borderEq, yen, lendYen);
+        const ballsNet = netBalls(spins, r, border, lendYen);
         const yenNet = ballsNet * yen;
         const td = document.createElement('td');
         td.dataset.balls = String(ex.balls);
@@ -1022,7 +1093,9 @@ def exchange_profit_markup(
         if (ex.balls === focus) td.classList.add('is-focus');
         td.innerHTML = `<span class="profit-balls">${{fmtBalls(ballsNet)}}</span>`
           + `<span class="profit-yen">${{fmtYen(yenNet)}}</span>`;
-        td.title = `ボーダー ${{border.toFixed(2)}}`;
+        td.title = withLend
+          ? `ボーダー ${{border.toFixed(2)}} / 貸出価格込み ${{lendYen}}円`
+          : `ボーダー ${{border.toFixed(2)}}`;
         tr.appendChild(td);
       }}
       body.appendChild(tr);
@@ -1081,32 +1154,75 @@ def exchange_profit_markup(
     }});
   }});
 
+  const persist = () => {{
+    try {{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({{
+        store: storeEl ? storeEl.value : '',
+        balls: exchangeEl.value,
+        lend: lendEl ? lendEl.value : ''
+      }}));
+    }} catch (_) {{}}
+  }};
+
+  const applyStoreDefaults = () => {{
+    if (!storeEl) return;
+    const opt = storeEl.selectedOptions[0];
+    if (!opt || !opt.value) return;
+    if (opt.dataset.balls) exchangeEl.value = opt.dataset.balls;
+    if (lendEl && opt.dataset.lend) {{
+      const lend = String(opt.dataset.lend);
+      const match = [...lendEl.options].find((o) => {{
+        if (!o.value) return false;
+        return Math.abs(Number(o.value) - Number(lend)) < 0.01;
+      }});
+      if (match) lendEl.value = match.value;
+      else {{
+        // 店舗固有値が選択肢に無いときだけ一時 option を足す
+        let custom = [...lendEl.options].find((o) => o.dataset.custom === '1');
+        if (!custom) {{
+          custom = document.createElement('option');
+          custom.dataset.custom = '1';
+          lendEl.appendChild(custom);
+        }}
+        custom.value = lend;
+        custom.textContent = opt.dataset.lendLabel || (lend + '円');
+        lendEl.value = lend;
+      }}
+    }}
+  }};
+
   if (storeEl) {{
     storeEl.addEventListener('change', () => {{
-      const opt = storeEl.selectedOptions[0];
-      if (opt && opt.dataset.balls) {{
-        exchangeEl.value = opt.dataset.balls;
-        try {{ localStorage.setItem(STORAGE_KEY, JSON.stringify({{ store: storeEl.value, balls: exchangeEl.value }})); }} catch (_) {{}}
-      }}
+      applyStoreDefaults();
+      persist();
       render();
     }});
   }}
   exchangeEl.addEventListener('change', () => {{
-    try {{
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({{
-        store: storeEl ? storeEl.value : '',
-        balls: exchangeEl.value
-      }}));
-    }} catch (_) {{}}
+    persist();
     render();
   }});
+  if (lendEl) {{
+    lendEl.addEventListener('change', () => {{
+      persist();
+      render();
+    }});
+  }}
 
   try {{
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (saved && saved.balls) exchangeEl.value = String(saved.balls);
     if (saved && saved.store && storeEl) {{
       const exists = [...storeEl.options].some((o) => o.value === saved.store);
       if (exists) storeEl.value = saved.store;
+    }}
+    if (storeEl && storeEl.value) applyStoreDefaults();
+    if (saved && saved.balls) exchangeEl.value = String(saved.balls);
+    if (saved && saved.lend != null && lendEl) {{
+      const existsLend = [...lendEl.options].some((o) => o.value === String(saved.lend));
+      if (existsLend) lendEl.value = String(saved.lend);
+      else if (saved.lend !== '') {{
+        applyStoreDefaults();
+      }}
     }}
   }} catch (_) {{}}
 

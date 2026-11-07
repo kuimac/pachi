@@ -1360,6 +1360,7 @@ def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False
     items = [
         ("計算", OUT / "tools" / "index.html", ""),
         ("目次", OUT / "index.html", ""),
+        ("店舗", OUT / "index.html", "#stores"),
         ("日付", OUT / "index.html", "#dates"),
         ("攻略", OUT / "index.html", "#guide"),
         ("スペック", OUT / "index.html", "#spec"),
@@ -1961,9 +1962,14 @@ def build_store_page(
     intro_when = times[0] if times else date_label(day)
     machine_html = machine_sections_html(dest, machines)
     info = store_info_html(store, dest, OUT / "店舗一覧.html")
+    hub = OUT / "店舗" / store / "index.html"
+    hub_link = (
+        f'<p class="related"><a href="{href(dest, hub)}">この店の分析一覧</a></p>'
+    )
     body = f"""
 <h1>{escape(store)}</h1>
 <p class="intro">分析日時 {escape(intro_when)} の判断と、この店舗の台データです。</p>
+{hub_link}
 {info}
 <input class="search" id="q" type="search" placeholder="台番号、機種名（なのは、鬼がかり、1088）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
@@ -1981,7 +1987,76 @@ def build_store_page(
             dest,
             [
                 ("目次", OUT / "index.html", ""),
+                ("店舗", OUT / "index.html", "#stores"),
+                (store, hub, ""),
                 (date_label(day), day_page, ""),
+                (store, None),
+            ],
+        ),
+        body,
+        wide=True,
+    )
+    write(dest, page)
+    return dest
+
+
+def build_store_hub(
+    store: str,
+    analyses: list[tuple[str, str, Path, str]],
+    machines: list[tuple[str, Path | None, Path | None, list[tuple[str, Path, dict[str, str]]]]],
+    region: str = "",
+    station: str = "",
+) -> Path:
+    """店舗ごとの分析横断ページ。MD は日付→店舗のまま、ここは一覧用。"""
+    dest = OUT / "店舗" / store / "index.html"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    # 新しい日付順
+    ordered = sorted(analyses, key=lambda row: row[0], reverse=True)
+    cards = []
+    for day, summary, page, when in ordered:
+        cards.append(
+            f'<a class="card" data-find="{escape(day)} {escape(when)} {escape(summary)}" '
+            f'href="{href(dest, page)}">'
+            f'<span class="kicker">{escape(when)}</span>'
+            f"<h3>{escape(date_label(day))}</h3>"
+            f"<p>{escape(summary)}</p></a>"
+        )
+    place = " · ".join(part for part in (region, station) if part)
+    place_html = f'<p class="intro">{escape(place)}。日付ごとの判断へ進めます。</p>' if place else (
+        '<p class="intro">この店の分析を新しい順に並べています。</p>'
+    )
+    info = store_info_html(store, dest, OUT / "店舗一覧.html")
+    machine_html = machine_sections_html(dest, machines) if machines else ""
+    machines_block = (
+        f'<p class="section-label" id="machines">台データ</p>'
+        f'<div id="machine-list">{machine_html}</div>'
+        if machine_html
+        else ""
+    )
+    search_pairs = [("analyses", "analysis-cards")]
+    if machine_html:
+        search_pairs.append(("machines", "machine-list"))
+    body = f"""
+<h1>{escape(store)}</h1>
+{place_html}
+{info}
+<input class="search" id="q" type="search" placeholder="日付、判断名、台番号、機種名" autocomplete="off">
+<p id="empty" class="empty" hidden>一致するページがありません。</p>
+<p class="section-label" id="analyses">分析（{len(ordered)}件）</p>
+<div class="doc-grid" id="analysis-cards">{''.join(cards) or '<p>まだ分析がありません。</p>'}</div>
+{machines_block}
+<p class="foot">分析 MD の置き場は <code>YYYY-MM-DD/{escape(store)}/</code>。ここは店舗横断の一覧です。</p>
+{search_script(search_pairs)}
+"""
+    page = shell(
+        dest,
+        store,
+        crumb(
+            dest,
+            [
+                ("目次", OUT / "index.html", ""),
+                ("店舗", OUT / "index.html", "#stores"),
                 (store, None),
             ],
         ),
@@ -2057,6 +2132,48 @@ def date_cards_sort_script() -> str:
 """
 
 
+def store_cards_sort_script() -> str:
+    return """
+<script>
+(() => {
+  const box = document.getElementById('store-cards');
+  const bar = document.getElementById('store-sort');
+  if (!box || !bar) return;
+  const cards = [...box.querySelectorAll('.card')];
+  const keyOf = (card, mode) => {
+    if (mode === 'region') return card.dataset.region || 'その他';
+    if (mode === 'station') return card.dataset.station || '未設定';
+    return '';
+  };
+  const apply = (mode) => {
+    bar.querySelectorAll('button').forEach((btn) => {
+      const on = btn.dataset.sort === mode;
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const sorted = [...cards].sort((a, b) => {
+      if (mode === 'newest') {
+        const cmp = Number(b.dataset.count || 0) - Number(a.dataset.count || 0);
+        if (cmp !== 0) return cmp;
+        return Number(a.dataset.order) - Number(b.dataset.order);
+      }
+      if (mode === 'region' || mode === 'station') {
+        const cmp = keyOf(a, mode).localeCompare(keyOf(b, mode), 'ja');
+        if (cmp !== 0) return cmp;
+      }
+      return Number(a.dataset.order) - Number(b.dataset.order);
+    });
+    sorted.forEach((card) => box.appendChild(card));
+  };
+  bar.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-sort]');
+    if (!btn) return;
+    apply(btn.dataset.sort);
+  });
+})();
+</script>
+"""
+
+
 def build_index(
     store_cards: list[tuple[str, str, str, Path, str]],
     guide_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
@@ -2064,16 +2181,19 @@ def build_index(
         tuple[str, str, Path, Path | None, list[tuple[str, Path]], list[str]]
     ],
     explain_cards: list[tuple[str, str, Path]] | None = None,
+    store_hub_cards: list[tuple[str, str, Path, str, str, int]] | None = None,
     store_regions: dict[str, str] | None = None,
     store_stations: dict[str, str] | None = None,
 ) -> None:
     """store_cards: (day, store, summary, store_page, when)
+    store_hub_cards: (store, summary, hub_page, region, station, count)
     explain_cards: (title, summary, page)
     """
     dest = OUT / "index.html"
     regions = store_regions or {}
     stations = store_stations or {}
     explain_cards = explain_cards or []
+    store_hub_cards = store_hub_cards or []
 
     explain_html = []
     for title, summary, page in explain_cards:
@@ -2081,6 +2201,17 @@ def build_index(
         explain_html.append(
             f'<a class="card" data-find="{escape(title)} {escape(summary)}" href="{href(dest, page)}">'
             f'<span class="kicker">{escape(kicker)}</span><h3>{escape(title)}</h3>'
+            f"<p>{escape(summary)}</p></a>"
+        )
+
+    store_html = []
+    for index, (store, summary, page, region, station, count) in enumerate(store_hub_cards):
+        store_html.append(
+            f'<a class="card" data-find="{escape(store)} {escape(region)} {escape(station)} {escape(summary)}" '
+            f'data-region="{escape(region)}" data-station="{escape(station)}" '
+            f'data-count="{count}" data-order="{index}" href="{href(dest, page)}">'
+            f'<span class="kicker">{escape(region)} · {escape(station)} · {count}件</span>'
+            f"<h3>{escape(store)}</h3>"
             f"<p>{escape(summary)}</p></a>"
         )
 
@@ -2146,13 +2277,31 @@ def build_index(
         )
 
     explain_block = ""
-    search_pairs = [("dates", "date-cards"), ("guide", "guide-cards"), ("spec", "spec-cards")]
+    search_pairs = [
+        ("stores", "store-cards"),
+        ("dates", "date-cards"),
+        ("guide", "guide-cards"),
+        ("spec", "spec-cards"),
+    ]
     if explain_html:
         explain_block = (
             '<p class="section-label" id="explain">解説</p>'
             f'<div class="doc-grid" id="explain-cards">{"".join(explain_html)}</div>'
         )
         search_pairs = [("explain", "explain-cards"), *search_pairs]
+
+    store_block = (
+        '<div class="section-head" id="stores">'
+        '<p class="section-label">店舗</p>'
+        '<div class="sort-bar" id="store-sort" role="group" aria-label="店舗の並び">'
+        '<button type="button" data-sort="newest" aria-pressed="true">分析が多い順</button>'
+        '<button type="button" data-sort="region" aria-pressed="false">地域順</button>'
+        '<button type="button" data-sort="station" aria-pressed="false">最寄り駅順</button>'
+        "</div></div>"
+        f'<div class="doc-grid" id="store-cards">{"".join(store_html)}</div>'
+        if store_html
+        else ""
+    )
 
     tool_page = OUT / "tools" / "index.html"
     machines = load_machine_borders()
@@ -2166,11 +2315,12 @@ def build_index(
 
     body = f"""
 <h1>控え</h1>
-<p class="intro">日付から店舗、詳細へと進みます。攻略とスペックは店舗共通です。</p>
+<p class="intro">店舗または日付から詳細へ進みます。攻略とスペックは店舗共通です。</p>
 {tools_block}
 <input class="search" id="q" type="search" placeholder="日付、店舗、地域、駅、機種名（町田駅、中山、なのは）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
 {explain_block}
+{store_block}
 <div class="section-head" id="dates">
   <p class="section-label">分析日</p>
   <div class="sort-bar" id="date-sort" role="group" aria-label="分析日の並び">
@@ -2197,6 +2347,7 @@ def build_index(
 <p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
 {search_script(search_pairs)}
 {date_cards_sort_script()}
+{store_cards_sort_script()}
 {kind_filter_script()}
 """
     page = shell(dest, "控え", "目次", body, wide=True)
@@ -2364,6 +2515,8 @@ def main() -> None:
                     dest,
                     [
                         ("目次", OUT / "index.html", ""),
+                        ("店舗", OUT / "index.html", "#stores"),
+                        (store, OUT / "店舗" / store / "index.html", ""),
                         (date_label(day), OUT / day / "index.html", ""),
                         (store, OUT / day / store / "index.html", ""),
                     ],
@@ -2451,13 +2604,45 @@ def main() -> None:
     machines = load_machine_borders()
     stores = load_store_exchanges()
     build_tools_page(machines, stores)
+
+    regions = load_store_regions()
+    stations = load_store_stations()
+    by_store: dict[str, list[tuple[str, str, Path, str]]] = {}
+    for day, store, summary, page, when in index_store_cards:
+        by_store.setdefault(store, []).append((day, summary, page, when))
+
+    store_hub_cards: list[tuple[str, str, Path, str, str, int]] = []
+    for store, analyses in sorted(by_store.items(), key=lambda item: item[0]):
+        # analyses already mixed; sort inside hub. Summary = latest day blurb.
+        latest = max(analyses, key=lambda row: row[0])
+        hub = build_store_hub(
+            store,
+            analyses,
+            store_machine_index.get(store, []),
+            regions.get(store) or guess_region(store),
+            stations.get(store) or guess_station(store),
+        )
+        store_hub_cards.append(
+            (
+                store,
+                f"最新 {date_label(latest[0])} · {latest[1]}",
+                hub,
+                regions.get(store) or guess_region(store),
+                stations.get(store) or guess_station(store),
+                len(analyses),
+            )
+        )
+    # 件数の多い店を先に（目次の初期並び）
+    store_hub_cards.sort(key=lambda row: (-row[5], row[0]))
+
     build_index(
         index_store_cards,
         guide_cards,
         spec_cards,
         explain_cards,
-        load_store_regions(),
-        load_store_stations(),
+        store_hub_cards,
+        regions,
+        stations,
     )
     # 機種スペックの図解など、Markdown から参照する静的画像を docs へコピーする。
     spec_images = ROOT / "機種スペック" / "images"

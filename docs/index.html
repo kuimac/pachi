@@ -9,13 +9,13 @@
 <body class="wide">
 <header class="top">
   <a class="brand" href="index.html">控え</a>
-  <nav><a href="tools/index.html">計算</a><a href="index.html">目次</a><a href="index.html#dates">日付</a><a href="index.html#guide">攻略</a><a href="index.html#spec">スペック</a></nav>
+  <nav><a href="tools/index.html">計算</a><a href="index.html">目次</a><a href="index.html#stores">店舗</a><a href="index.html#dates">日付</a><a href="index.html#guide">攻略</a><a href="index.html#spec">スペック</a></nav>
 </header>
 <main>
   <p class="crumb">目次</p>
   
 <h1>控え</h1>
-<p class="intro">日付から店舗、詳細へと進みます。攻略とスペックは店舗共通です。</p>
+<p class="intro">店舗または日付から詳細へ進みます。攻略とスペックは店舗共通です。</p>
 <p class="section-label" id="tools">ツール</p>
 <section class="calc" id="rotation-calc" aria-labelledby="calc-title">
   <div class="calc-head">
@@ -602,6 +602,7 @@
 <input class="search" id="q" type="search" placeholder="日付、店舗、地域、駅、機種名（町田駅、中山、なのは）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
 <p class="section-label" id="explain">解説</p><div class="doc-grid" id="explain-cards"><a class="card" data-find="店舗一覧 対象: 4円パチンコのみ（全台集計） 指示や会話で別名が出たら、正規店名に解決する。営業時間・台数は店舗・P-WORLD掲載の目安（変更あり）。" href="%E5%BA%97%E8%88%97%E4%B8%80%E8%A6%A7.html"><span class="kicker">店舗</span><h3>店舗一覧</h3><p>対象: 4円パチンコのみ（全台集計） 指示や会話で別名が出たら、正規店名に解決する。営業時間・台数は店舗・P-WORLD掲載の目安（変更あり）。</p></a><a class="card" data-find="データの見方と台の選び方 台のデータで何を見て、どの順で座るか。このサイトの午後・朝イチ判断も同じ順。" href="%E8%A7%A3%E8%AA%AC/%E3%83%87%E3%83%BC%E3%82%BF%E3%81%AE%E8%A6%8B%E6%96%B9%E3%81%A8%E5%8F%B0%E3%81%AE%E9%81%B8%E3%81%B3%E6%96%B9.html"><span class="kicker">解説</span><h3>データの見方と台の選び方</h3><p>台のデータで何を見て、どの順で座るか。このサイトの午後・朝イチ判断も同じ順。</p></a></div>
+<div class="section-head" id="stores"><p class="section-label">店舗</p><div class="sort-bar" id="store-sort" role="group" aria-label="店舗の並び"><button type="button" data-sort="newest" aria-pressed="true">分析が多い順</button><button type="button" data-sort="region" aria-pressed="false">地域順</button><button type="button" data-sort="station" aria-pressed="false">最寄り駅順</button></div></div><div class="doc-grid" id="store-cards"><a class="card" data-find="中山UNO 中山 中山駅 最新 11月8日 · 重要ポイント · 朝イチ狙い目 · 台分析" data-region="中山" data-station="中山駅" data-count="2" data-order="0" href="%E5%BA%97%E8%88%97/%E4%B8%AD%E5%B1%B1UNO/index.html"><span class="kicker">中山 · 中山駅 · 2件</span><h3>中山UNO</h3><p>最新 11月8日 · 重要ポイント · 朝イチ狙い目 · 台分析</p></a><a class="card" data-find="楽園町田店 町田 町田駅 最新 11月8日 · 重要ポイント · 朝イチ狙い目 · 台分析" data-region="町田" data-station="町田駅" data-count="2" data-order="1" href="%E5%BA%97%E8%88%97/%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/index.html"><span class="kicker">町田 · 町田駅 · 2件</span><h3>楽園町田店</h3><p>最新 11月8日 · 重要ポイント · 朝イチ狙い目 · 台分析</p></a><a class="card" data-find="PIA町田 町田 町田駅 最新 11月7日 · 午後狙い目" data-region="町田" data-station="町田駅" data-count="1" data-order="2" href="%E5%BA%97%E8%88%97/PIA%E7%94%BA%E7%94%B0/index.html"><span class="kicker">町田 · 町田駅 · 1件</span><h3>PIA町田</h3><p>最新 11月7日 · 午後狙い目</p></a><a class="card" data-find="中山ZoRoN 中山 中山駅 最新 11月7日 · 午後狙い目 · 期待値が高い台" data-region="中山" data-station="中山駅" data-count="1" data-order="3" href="%E5%BA%97%E8%88%97/%E4%B8%AD%E5%B1%B1ZoRoN/index.html"><span class="kicker">中山 · 中山駅 · 1件</span><h3>中山ZoRoN</h3><p>最新 11月7日 · 午後狙い目 · 期待値が高い台</p></a></div>
 <div class="section-head" id="dates">
   <p class="section-label">分析日</p>
   <div class="sort-bar" id="date-sort" role="group" aria-label="分析日の並び">
@@ -656,6 +657,7 @@ const applyCatalogFilter = () => {
   });
   [
     ['explain', 'explain-cards'],
+    ['stores', 'store-cards'],
     ['dates', 'date-cards'],
     ['guide', 'guide-cards'],
     ['spec', 'spec-cards']
@@ -692,6 +694,45 @@ window.applyCatalogFilter = applyCatalogFilter;
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     const sorted = [...cards].sort((a, b) => {
+      if (mode === 'region' || mode === 'station') {
+        const cmp = keyOf(a, mode).localeCompare(keyOf(b, mode), 'ja');
+        if (cmp !== 0) return cmp;
+      }
+      return Number(a.dataset.order) - Number(b.dataset.order);
+    });
+    sorted.forEach((card) => box.appendChild(card));
+  };
+  bar.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-sort]');
+    if (!btn) return;
+    apply(btn.dataset.sort);
+  });
+})();
+</script>
+
+
+<script>
+(() => {
+  const box = document.getElementById('store-cards');
+  const bar = document.getElementById('store-sort');
+  if (!box || !bar) return;
+  const cards = [...box.querySelectorAll('.card')];
+  const keyOf = (card, mode) => {
+    if (mode === 'region') return card.dataset.region || 'その他';
+    if (mode === 'station') return card.dataset.station || '未設定';
+    return '';
+  };
+  const apply = (mode) => {
+    bar.querySelectorAll('button').forEach((btn) => {
+      const on = btn.dataset.sort === mode;
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const sorted = [...cards].sort((a, b) => {
+      if (mode === 'newest') {
+        const cmp = Number(b.dataset.count || 0) - Number(a.dataset.count || 0);
+        if (cmp !== 0) return cmp;
+        return Number(a.dataset.order) - Number(b.dataset.order);
+      }
       if (mode === 'region' || mode === 'station') {
         const cmp = keyOf(a, mode).localeCompare(keyOf(b, mode), 'ja');
         if (cmp !== 0) return cmp;

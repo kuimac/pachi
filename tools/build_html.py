@@ -919,17 +919,18 @@ def build_date_page(day: str, store_cards: list[tuple[str, str, Path, str]]) -> 
 
 
 def build_index(
-    date_cards: list[tuple[str, str, Path, str]],
+    store_cards: list[tuple[str, str, str, Path, str]],
     guide_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
     spec_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
 ) -> None:
+    """store_cards: (day, store, summary, store_page, when)"""
     dest = OUT / "index.html"
 
     date_html = []
-    for day, summary, page, when in date_cards:
+    for day, store, summary, page, when in store_cards:
         date_html.append(
-            f'<a class="card" data-find="{escape(day)} {escape(summary)}" href="{href(dest, page)}">'
-            f'<span class="kicker">分析日時</span><h3>{escape(when)}</h3>'
+            f'<a class="card" data-find="{escape(day)} {escape(store)} {escape(summary)}" href="{href(dest, page)}">'
+            f'<span class="kicker">{escape(when)}</span><h3>{escape(store)}</h3>'
             f"<p>{escape(summary)}</p></a>"
         )
 
@@ -1101,9 +1102,9 @@ def main() -> None:
     for day, store, folder in day_stores:
         stores_by_day.setdefault(day, []).append((day, store, folder))
 
-    date_cards: list[tuple[str, str, Path, str]] = []
+    index_store_cards: list[tuple[str, str, str, Path, str]] = []
     for day, entries in stores_by_day.items():
-        store_cards: list[tuple[str, str, Path, str]] = []
+        day_store_cards: list[tuple[str, str, Path, str]] = []
         for _, store, folder in entries:
             detail_sources = [folder / name for name in DETAIL_ORDER if (folder / name).exists()]
             for path in sorted(folder.glob("*.md")):
@@ -1139,15 +1140,19 @@ def main() -> None:
                 (when for *_, when in detail_pages if when != date_label(day)),
                 date_label(day),
             )
-            store_cards.append((store, summary, store_page, store_when))
+            day_store_cards.append((store, summary, store_page, store_when))
+            index_store_cards.append((day, store, summary, store_page, store_when))
 
-        day_page = build_date_page(day, store_cards)
-        store_names_text = " · ".join(store for store, *_ in store_cards)
-        day_when = next(
-            (when for *_, when in store_cards if when != date_label(day)),
-            date_label(day),
-        )
-        date_cards.append((day, store_names_text, day_page, day_when))
+        build_date_page(day, day_store_cards)
+
+    # トップは新しい分析日時順で店舗カードを出す（日付ページと同じ見た目）
+    def _when_sort_key(item: tuple[str, str, str, Path, str]) -> str:
+        day, _store, _summary, _page, when = item
+        m = re.search(r"(\d{1,2}):(\d{2})", when)
+        hhmm = f"{int(m.group(1)):02d}{int(m.group(2)):02d}" if m else "0000"
+        return f"{day}-{hhmm}"
+
+    index_store_cards.sort(key=_when_sort_key, reverse=True)
 
     guide_cards = []
     for source in guide_sources:
@@ -1167,7 +1172,7 @@ def main() -> None:
             (title_of(text, source.stem), blurb(text), spec_out[key], guide_out.get(key), units)
         )
 
-    build_index(date_cards, guide_cards, spec_cards)
+    build_index(index_store_cards, guide_cards, spec_cards)
     (OUT / ".nojekyll").write_text("", encoding="utf-8")
     for path in sorted(OUT.rglob("*"), reverse=True):
         if path.is_dir() and not any(path.iterdir()):

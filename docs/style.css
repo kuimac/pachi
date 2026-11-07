@@ -296,6 +296,41 @@ table.dense td:last-child {
   letter-spacing: 0.08em;
   color: var(--muted);
 }
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 14px;
+  margin: 22px 0 8px;
+}
+.section-head .section-label { margin: 0; }
+.sort-bar {
+  display: inline-flex;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+}
+.sort-bar button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.sort-bar button[aria-pressed="true"] {
+  background: var(--nav);
+  color: #f6f1e8;
+}
+.sort-bar button:hover { color: var(--accent); }
+.sort-bar button[aria-pressed="true"]:hover { color: #ffd7a8; }
 
 details {
   background: var(--paper);

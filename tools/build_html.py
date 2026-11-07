@@ -474,7 +474,7 @@ def load_machine_borders() -> list[dict[str, object]]:
         else:
             border = nums[0]
         title = title_of(text, path.stem)
-        key = site_name(path.stem)
+        key = re.sub(r"[:：]", ":", site_name(path.stem)).casefold()
         if key in seen:
             continue
         seen.add(key)

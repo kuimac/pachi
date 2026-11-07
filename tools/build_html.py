@@ -40,6 +40,7 @@ KINDS = [
     ("機種ごと", "spec"),
     ("天井", "caution"),
     ("モード", "spec"),
+    ("カスタム", "target"),
     ("打ち方", "target"),
     ("結論", "conclusion"),
     ("総評", "conclusion"),

@@ -330,16 +330,34 @@
     if (active) active.scrollIntoView({ block: 'nearest' });
   };
 
+  const selectedBalls = () => {
+    const n = Number(exchangeEl.value);
+    return Number.isFinite(n) ? n : 28;
+  };
+
+  const markFocusColumn = () => {
+    if (!table) return;
+    const balls = selectedBalls();
+    table.querySelectorAll('[data-balls]').forEach((el) => {
+      el.classList.toggle('is-focus', Number(el.dataset.balls) === balls);
+    });
+  };
+
   const render = () => {
     const borderEq = num(borderEl);
     const rate = num(rateEl);
     const spins = num(spinsEl);
+    const focus = selectedBalls();
+    const focusYenValue = yenOf(focus);
     body.innerHTML = '';
     if (eqBorder) eqBorder.textContent = borderEq != null ? String(borderEq) : '—';
-    if (ball28) ball28.textContent = '—';
-    if (yen28) yen28.textContent = '—';
-    if (ball28) ball28.parentElement.classList.remove('good', 'bad');
-    if (yen28) yen28.parentElement.classList.remove('good', 'bad');
+    if (focusBalls) focusBalls.textContent = '—';
+    if (focusYen) focusYen.textContent = '—';
+    if (focusBalls) focusBalls.parentElement.classList.remove('good', 'bad');
+    if (focusYen) focusYen.parentElement.classList.remove('good', 'bad');
+    if (focusBallsLabel) focusBallsLabel.textContent = `${focus}玉の差玉`;
+    if (focusYenLabel) focusYenLabel.textContent = `${focus}玉の収支円`;
+    markFocusColumn();
 
     if (borderEq == null || borderEq <= 0 || spins == null || spins <= 0) {
       body.innerHTML = '<tr><td colspan="6">機種を選ぶか等価ボーダーを入れると表が出ます。</td></tr>';
@@ -347,22 +365,23 @@
     }
     if (caption) {
       const hours = spins / 200;
-      caption.textContent = `通常時 ${spins} 回転（約${hours}時間）の期待収支一覧（単位: 玉 / 下段は円）`;
+      const storeName = storeEl && storeEl.value ? storeEl.value + '・' : '';
+      caption.textContent = `通常時 ${spins} 回転（約${hours}時間）の期待収支一覧（単位: 玉 / 下段は円） / 選択 ${storeName}${focus}玉`;
     }
 
     if (rate != null && rate > 0) {
-      const b28 = borderAt(borderEq, yenOf(28));
-      const n28 = netBalls(spins, rate, b28);
-      const y28 = n28 * yenOf(28);
-      if (ball28) {
-        ball28.textContent = fmtBalls(n28);
-        ball28.parentElement.classList.toggle('good', n28 > 0);
-        ball28.parentElement.classList.toggle('bad', n28 < 0);
+      const borderFocus = borderAt(borderEq, focusYenValue);
+      const nFocus = netBalls(spins, rate, borderFocus);
+      const yFocus = nFocus * focusYenValue;
+      if (focusBalls) {
+        focusBalls.textContent = fmtBalls(nFocus);
+        focusBalls.parentElement.classList.toggle('good', nFocus > 0);
+        focusBalls.parentElement.classList.toggle('bad', nFocus < 0);
       }
-      if (yen28) {
-        yen28.textContent = fmtYen(y28);
-        yen28.parentElement.classList.toggle('good', y28 > 0);
-        yen28.parentElement.classList.toggle('bad', y28 < 0);
+      if (focusYen) {
+        focusYen.textContent = fmtYen(yFocus);
+        focusYen.parentElement.classList.toggle('good', yFocus > 0);
+        focusYen.parentElement.classList.toggle('bad', yFocus < 0);
       }
     }
 
@@ -388,7 +407,9 @@
         const ballsNet = netBalls(spins, r, border);
         const yenNet = ballsNet * yen;
         const td = document.createElement('td');
+        td.dataset.balls = String(ex.balls);
         td.className = `num ${cellClass(ballsNet)}`;
+        if (ex.balls === focus) td.classList.add('is-focus');
         td.innerHTML = `<span class="profit-balls">${fmtBalls(ballsNet)}</span>`
           + `<span class="profit-yen">${fmtYen(yenNet)}</span>`;
         td.title = `ボーダー ${border.toFixed(2)}`;

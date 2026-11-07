@@ -521,8 +521,146 @@ def table_sort_script() -> str:
 """
 
 
+def rotation_calc_markup(compact: bool = False) -> str:
+    """1000円あたり回転数の入力 UI。compact=True はトップ埋め込み用。"""
+    note = (
+        '<p class="calc-note">通常時だけ数える。電サポ中は入れない。'
+        "4円・100円25玉なら、玉250＝現金1000円。</p>"
+        if not compact
+        else '<p class="calc-note">通常時のみ。(現在−初期) ÷ (玉数÷250)</p>'
+    )
+    return f"""
+<section class="calc" id="rotation-calc" aria-labelledby="calc-title">
+  <div class="calc-head">
+    <h2 id="calc-title">回転率計算</h2>
+    <p class="calc-formula"><code>(現在スタート − 初期スタート) ÷ (玉数 ÷ 250)</code></p>
+  </div>
+  <div class="calc-grid">
+    <label class="calc-field">
+      <span>初期スタート</span>
+      <input id="calc-initial" type="number" inputmode="decimal" step="1" min="0" placeholder="例 120" autocomplete="off">
+    </label>
+    <label class="calc-field">
+      <span>使った玉数</span>
+      <div class="calc-row">
+        <input id="calc-balls" type="number" inputmode="decimal" step="1" min="0" placeholder="例 250" autocomplete="off">
+        <button type="button" class="calc-btn" data-add-balls="250" title="1000円分（250玉）">+250</button>
+      </div>
+    </label>
+    <label class="calc-field">
+      <span>現在スタート</span>
+      <div class="calc-row">
+        <input id="calc-current" type="number" inputmode="decimal" step="1" min="0" placeholder="例 138" autocomplete="off">
+        <button type="button" class="calc-btn primary" data-add-current="125" title="現在スタートに125を足す">+125</button>
+      </div>
+    </label>
+  </div>
+  <div class="calc-result" aria-live="polite">
+    <div class="stat">
+      <b id="calc-rate">—</b>
+      <span>1000円あたり回転数</span>
+    </div>
+    <div class="stat">
+      <b id="calc-diff">—</b>
+      <span>増えたスタート</span>
+    </div>
+    <div class="stat">
+      <b id="calc-units">—</b>
+      <span>使った1000円単位</span>
+    </div>
+  </div>
+  {note}
+</section>
+<script>
+(() => {{
+  const initial = document.getElementById('calc-initial');
+  const balls = document.getElementById('calc-balls');
+  const current = document.getElementById('calc-current');
+  const rateEl = document.getElementById('calc-rate');
+  const diffEl = document.getElementById('calc-diff');
+  const unitsEl = document.getElementById('calc-units');
+  if (!initial || !balls || !current || !rateEl) return;
+
+  const num = (el) => {{
+    const v = el.value.trim();
+    if (v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }};
+
+  const fmt = (n, digits = 1) => {{
+    if (!Number.isFinite(n)) return '—';
+    const fixed = n.toFixed(digits);
+    return fixed.replace(/\\.0+$/, '').replace(/(\\.[0-9]*?)0+$/, '$1');
+  }};
+
+  const render = () => {{
+    const a = num(initial);
+    const b = num(balls);
+    const c = num(current);
+    if (a === null || b === null || c === null || b <= 0) {{
+      rateEl.textContent = '—';
+      diffEl.textContent = '—';
+      unitsEl.textContent = '—';
+      rateEl.parentElement.classList.remove('good', 'bad');
+      return;
+    }}
+    const diff = c - a;
+    const units = b / 250;
+    const rate = diff / units;
+    diffEl.textContent = fmt(diff, 1);
+    unitsEl.textContent = fmt(units, 2);
+    rateEl.textContent = fmt(rate, 1);
+    rateEl.parentElement.classList.toggle('good', rate >= 18);
+    rateEl.parentElement.classList.toggle('bad', rate > 0 && rate < 16);
+  }};
+
+  [initial, balls, current].forEach((el) => {{
+    el.addEventListener('input', render);
+    el.addEventListener('change', render);
+  }});
+
+  document.querySelectorAll('[data-add-current]').forEach((btn) => {{
+    btn.addEventListener('click', () => {{
+      const base = num(current) ?? 0;
+      current.value = String(base + Number(btn.dataset.addCurrent));
+      current.focus();
+      render();
+    }});
+  }});
+  document.querySelectorAll('[data-add-balls]').forEach((btn) => {{
+    btn.addEventListener('click', () => {{
+      const base = num(balls) ?? 0;
+      balls.value = String(base + Number(btn.dataset.addBalls));
+      balls.focus();
+      render();
+    }});
+  }});
+  render();
+}})();
+</script>
+"""
+
+
+def build_rotation_page() -> Path:
+    dest = OUT / "tools" / "回転率.html"
+    page = shell(
+        dest,
+        "回転率計算",
+        crumb(dest, [("目次", OUT / "index.html", ""), ("回転率計算", None)]),
+        f"""
+<h1>回転率計算</h1>
+<p class="intro">初期スタート・使った玉数・現在スタートから、1000円あたりの回転数を出します。現在スタートは +125 ボタンで足せます。</p>
+{rotation_calc_markup(compact=False)}
+""",
+    )
+    write(dest, page)
+    return dest
+
+
 def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False) -> str:
     items = [
+        ("回転率", OUT / "tools" / "回転率.html", ""),
         ("目次", OUT / "index.html", ""),
         ("日付", OUT / "index.html", "#dates"),
         ("攻略", OUT / "index.html", "#guide"),
@@ -1252,9 +1390,17 @@ def build_index(
         )
         search_pairs = [("explain", "explain-cards"), *search_pairs]
 
+    tool_page = OUT / "tools" / "回転率.html"
+    tools_block = (
+        '<p class="section-label" id="tools">ツール</p>'
+        f'{rotation_calc_markup(compact=True)}'
+        f'<p class="calc-more"><a href="{href(dest, tool_page)}">回転率ページを開く</a></p>'
+    )
+
     body = f"""
 <h1>控え</h1>
 <p class="intro">日付から店舗、詳細へと進みます。攻略とスペックは店舗共通です。</p>
+{tools_block}
 <input class="search" id="q" type="search" placeholder="日付、店舗、地域、駅、機種名（町田駅、中山、なのは）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
 {explain_block}
@@ -1506,6 +1652,7 @@ def main() -> None:
             )
         )
 
+    build_rotation_page()
     build_index(
         index_store_cards,
         guide_cards,

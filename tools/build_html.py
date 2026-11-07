@@ -1067,6 +1067,35 @@ def exchange_profit_markup(
     }});
   }});
 
+  if (storeEl) {{
+    storeEl.addEventListener('change', () => {{
+      const opt = storeEl.selectedOptions[0];
+      if (opt && opt.dataset.balls) {{
+        exchangeEl.value = opt.dataset.balls;
+        try {{ localStorage.setItem(STORAGE_KEY, JSON.stringify({{ store: storeEl.value, balls: exchangeEl.value }})); }} catch (_) {{}}
+      }}
+      render();
+    }});
+  }}
+  exchangeEl.addEventListener('change', () => {{
+    try {{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({{
+        store: storeEl ? storeEl.value : '',
+        balls: exchangeEl.value
+      }}));
+    }} catch (_) {{}}
+    render();
+  }});
+
+  try {{
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (saved && saved.balls) exchangeEl.value = String(saved.balls);
+    if (saved && saved.store && storeEl) {{
+      const exists = [...storeEl.options].some((o) => o.value === saved.store);
+      if (exists) storeEl.value = saved.store;
+    }}
+  }} catch (_) {{}}
+
   const calcInputs = ['calc-initial', 'calc-balls', 'calc-current']
     .map((id) => document.getElementById(id))
     .filter(Boolean);
@@ -1086,9 +1115,13 @@ def exchange_profit_markup(
 """
 
 
-def build_tools_page(machines: list[dict[str, object]] | None = None) -> Path:
+def build_tools_page(
+    machines: list[dict[str, object]] | None = None,
+    stores: list[dict[str, object]] | None = None,
+) -> Path:
     """tools/ 直下を index にし、/tools/ が 404 にならないようにする。"""
     machines = machines if machines is not None else load_machine_borders()
+    stores = stores if stores is not None else load_store_exchanges()
     dest = OUT / "tools" / "index.html"
     page = shell(
         dest,
@@ -1096,9 +1129,9 @@ def build_tools_page(machines: list[dict[str, object]] | None = None) -> Path:
         crumb(dest, [("目次", OUT / "index.html", ""), ("計算ツール", None)]),
         f"""
 <h1>計算ツール</h1>
-<p class="intro">回転率の実測と、4パチ交換率ごとの期待収支を出します。使った玉数は +125 で足せます。等価ボーダーは機種名で検索できます。</p>
+<p class="intro">回転率の実測と、4パチ交換率ごとの期待収支を出します。店舗ごとの交換率と機種名検索が使えます。</p>
 {rotation_calc_markup(compact=False)}
-{exchange_profit_markup(machines, compact=False)}
+{exchange_profit_markup(machines, stores, compact=False)}
 """,
         wide=True,
     )
@@ -1859,10 +1892,11 @@ def build_index(
 
     tool_page = OUT / "tools" / "index.html"
     machines = load_machine_borders()
+    stores = load_store_exchanges()
     tools_block = (
         '<p class="section-label" id="tools">ツール</p>'
         f'{rotation_calc_markup(compact=True)}'
-        f'{exchange_profit_markup(machines, compact=True)}'
+        f'{exchange_profit_markup(machines, stores, compact=True)}'
         f'<p class="calc-more"><a href="{href(dest, tool_page)}">計算ツールを開く</a></p>'
     )
 
@@ -2122,7 +2156,8 @@ def main() -> None:
         )
 
     machines = load_machine_borders()
-    build_tools_page(machines)
+    stores = load_store_exchanges()
+    build_tools_page(machines, stores)
     build_index(
         index_store_cards,
         guide_cards,

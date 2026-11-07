@@ -492,6 +492,31 @@ summary::-webkit-details-marker { color: var(--accent); }
 .calc-grid-profit {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+.calc-grid-store {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.calc-field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.02rem;
+}
+.calc-field select:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: var(--accent);
+}
+.profit-table th.is-focus,
+.profit-table td.is-focus {
+  background: #fff3cc;
+  box-shadow: inset 0 0 0 1px #e2c56a;
+}
 .calc-machine {
   margin: 0 0 12px;
 }

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" role="img" aria-labelledby="title desc">
+  <title id="title">óSa~Šn‹¹</title>
+  <desc id="desc">ûÁåüûóSaéó×û²v:n¢Â</desc>
+  <defs>
+    <style>
+      .bg { fill:#f3efe6; }
+      .card { fill:#fffdf8; stroke:#e4dcd0; stroke-width:2; }
+      .title { font:700 18px "Hiragino Sans","Yu Gothic",sans-serif; fill:#1e1a16; }
+      .body { font:14px "Hiragino Sans","Yu Gothic",sans-serif; fill:#1e1a16; }
+      .muted { font:12px "Hiragino Sans","Yu Gothic",sans-serif; fill:#6f675e; }
+      .accent { fill:#9c2f1a; }
+      .ok { fill:#1b6b43; }
+      .chip { fill:#ffe8a8; stroke:#9c2f1a; stroke-width:2; }
+      .lamp { fill:#ff5a3c; }
+    </style>
+  </defs>
+  <rect width="720" height="420" class="bg"/>
+  <text x="28" y="40" class="title">óSa~Šn‹¹</text>
+  <text x="28" y="62" class="muted">ûÁåüûµİóSaéó×o%i</text>
+
+  <rect x="24" y="84" width="210" height="300" rx="14" class="card"/>
+  <circle cx="129" cy="140" r="28" class="chip"/>
+  <text x="129" y="146" text-anchor="middle" class="body">ûÁåü</text>
+  <text x="40" y="196" class="body">äbneŞã</text>
+  <text x="40" y="220" class="muted">½9L‹‰Y‹èÁ</text>
+  <text x="40" y="240" class="muted">óSa-nËÕãk</text>
+  <text x="40" y="260" class="muted">j‹ShLD</text>
+  <text x="40" y="292" class="muted">4@nî‰:</text>
+  <text x="40" y="312" class="body">äbó-.ó</text>
+  <text x="40" y="340" class="muted">;æûÁåü_‚B‹</text>
+
+  <rect x="254" y="84" width="210" height="300" rx="14" class="card"/>
+  <rect x="300" y="118" width="118" height="44" rx="10" class="ok"/>
+  <text x="359" y="146" text-anchor="middle" fill="#fffdf8" font="700 16px sans-serif">ûµİ</text>
+  <text x="270" y="196" class="body">J€n¶K</text>
+  <text x="270" y="220" class="muted">èÁgojD</text>
+  <text x="270" y="240" class="muted">BíûSTûRUSH-k</text>
+  <text x="270" y="260" class="muted">ûÁåüL‹M„YD</text>
+  <text x="270" y="292" class="muted">îp:</text>
+  <text x="270" y="312" class="body">²vnóSa</text>
+  <text x="270" y="340" class="muted">óSaéó×¹o</text>
+
+  <rect x="484" y="84" width="212" height="300" rx="14" class="card"/>
+  <circle cx="590" cy="140" r="28" class="lamp"/>
+  <text x="590" y="146" text-anchor="middle" fill="#fff" font="700 14px sans-serif">ó</text>
+  <text x="500" y="196" class="body">óSaéó×</text>
+  <text x="500" y="220" class="muted">óSa[ˆûµİ-</text>
+  <text x="500" y="240" class="muted">’:Yéó×</text>
+  <text x="500" y="260" class="muted">_.gMnLUF</text>
+  <text x="500" y="292" class="muted">ˆOB‹4@:</text>
+  <text x="500" y="312" class="body">ûÁåü*ûäb</text>
+  <text x="500" y="340" class="muted">²vh:‚ÅZ‹‹</text>
+</svg>

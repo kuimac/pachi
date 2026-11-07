@@ -13,7 +13,7 @@
 </header>
 <main>
   <p class="crumb"><a href="../index.html">目次</a> / <a href="../index.html#spec">機種スペック</a></p>
-  <h1>パチンコ用語一覧</h1><nav class="toc"><a href="#s1">確率・抽選</a><a href="#s2">出玉</a><a href="#s3">状態移行</a><a href="#s4">天井・時短突入系</a><a href="#s5">台・操作</a><a href="#s6">打ち方の判断</a></nav><div class="lede"><p>近い意味の用語を同じ見出しにまとめている。表の「意味」は、このフォルダの機種スペックを読むときの共通語。</p>
+  <h1>パチンコ用語一覧</h1><nav class="toc"><a href="#s1">確率・抽選</a><a href="#s2">盤面の場所（共通）</a><a href="#s3">出玉</a><a href="#s4">状態移行</a><a href="#s5">天井・時短突入系</a><a href="#s6">台・操作</a><a href="#s7">打ち方の判断</a></nav><div class="lede"><p>近い意味の用語を同じ見出しにまとめている。表の「意味」は、このフォルダの機種スペックを読むときの共通語。</p>
 <p>現場の言い伝え・画面確認の扱いは <a href="%E3%82%AA%E3%82%AB%E3%83%AB%E3%83%88%E3%83%91%E3%83%81%E3%83%B3%E3%82%B3%E5%8B%95%E4%BD%9C%E4%B8%80%E8%A6%A7.html">オカルトパチンコ動作一覧</a>。</p>
 </div>
 <section class="block plain"><h2 id="s1">確率・抽選</h2>
@@ -79,7 +79,7 @@
 </tr>
 <tr>
 <td>電サポ</td>
-<td>電チューサポート。電チューが開きやすくなり、右打ちで回転が速くなる</td>
+<td>電チューサポート。電チューが開きやすくなり、右打ちで回転が速くなる。<strong>部品ではなく状態</strong></td>
 </tr>
 <tr>
 <td>V入賞</td>
@@ -88,7 +88,54 @@
 </tbody>
 </table></div>
 </section>
-<section class="block plain"><h2 id="s2">出玉</h2>
+<section class="block spec"><h2 id="s2">盤面の場所（共通）</h2>
+<p>電チュー・右打ちランプは機種で位置が前後する。電サポは場所ではなく状態。迷ったら液晶の「右打ち」表示を優先する。</p>
+<figure class="panel-fig"><img alt="盤面ガイド" src="images/盤面ガイド.svg" loading="lazy" /></figure>
+<figure class="panel-fig"><img alt="右打ちまわり" src="images/右打ちまわり.svg" loading="lazy" /></figure>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>項目</th>
+<th>典型の場所</th>
+<th>見方</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ヘソ</td>
+<td>盤面中央下寄り</td>
+<td>通常時（左打ち）の始動口</td>
+</tr>
+<tr>
+<td>電チュー</td>
+<td>盤面右下〜中央右</td>
+<td>羽根が開く入賞口。右打ちの始動口</td>
+</tr>
+<tr>
+<td>スルー</td>
+<td>右側の玉道上</td>
+<td>通過で普図抽選→電チュー開放</td>
+</tr>
+<tr>
+<td>アタッカー</td>
+<td>盤面下部中央寄り</td>
+<td>大当り中の大入賞口</td>
+</tr>
+<tr>
+<td>右打ちランプ</td>
+<td>電チュー横・盤面下が多い</td>
+<td>点灯中は右打ち。機種差が大きい</td>
+</tr>
+<tr>
+<td>電サポ</td>
+<td>（状態）</td>
+<td>時短・ST・RUSH中。液晶「右打ち」が目印</td>
+</tr>
+</tbody>
+</table></div>
+<p>各機種スペックの「盤面の場所」に、その台の目安を書いている。</p>
+</section>
+<section class="block plain"><h2 id="s3">出玉</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -140,7 +187,7 @@
 </tbody>
 </table></div>
 </section>
-<section class="block plain"><h2 id="s3">状態移行</h2>
+<section class="block plain"><h2 id="s4">状態移行</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -200,7 +247,7 @@
 </tbody>
 </table></div>
 </section>
-<section class="block caution"><h2 id="s4">天井・時短突入系</h2>
+<section class="block caution"><h2 id="s5">天井・時短突入系</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -260,7 +307,7 @@
 </tbody>
 </table></div>
 </section>
-<section class="block plain"><h2 id="s5">台・操作</h2>
+<section class="block plain"><h2 id="s6">台・操作</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -279,19 +326,23 @@
 </tr>
 <tr>
 <td>ヘソ</td>
-<td>通常時に玉を入れる始動口。入ると保留が付き、図柄が変動する</td>
+<td>通常時に玉を入れる始動口。入ると保留が付き、図柄が変動する。場所は盤面中央下寄りが多い</td>
 </tr>
 <tr>
 <td>電チュー</td>
-<td>電動チューリップ。電サポ中に開き、右打ちの始動口になる</td>
+<td>電動チューリップ。電サポ中に開き、右打ちの始動口になる。場所は盤面右下〜中央右が多い（左電チュー機もある）</td>
 </tr>
 <tr>
 <td>スルー</td>
-<td>玉が通過するゲート。電チューを開く普図抽選に使う</td>
+<td>玉が通過するゲート。電チューを開く普図抽選に使う。右側の玉道上にあることが多い</td>
 </tr>
 <tr>
 <td>アタッカー</td>
-<td>大当り中に開く大入賞口。ここに入った玉数×賞球が払い出しの基本</td>
+<td>大当り中に開く大入賞口。ここに入った玉数×賞球が払い出しの基本。盤面下部中央寄りが多い</td>
+</tr>
+<tr>
+<td>右打ちランプ</td>
+<td>右打ち中・電サポ中を示すランプ。電チュー横や盤面下が多い。液晶の「右打ち」表示も必ず見る</td>
 </tr>
 <tr>
 <td>保留</td>
@@ -336,7 +387,7 @@
 </tbody>
 </table></div>
 </section>
-<section class="block target"><h2 id="s6">打ち方の判断</h2>
+<section class="block target"><h2 id="s7">打ち方の判断</h2>
 <div class="table-wrap"><table>
 <thead>
 <tr>

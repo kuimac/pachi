@@ -1644,7 +1644,7 @@ def build_index(
         )
         search_pairs = [("explain", "explain-cards"), *search_pairs]
 
-    tool_page = OUT / "tools" / "回転率.html"
+    tool_page = OUT / "tools" / "index.html"
     tools_block = (
         '<p class="section-label" id="tools">ツール</p>'
         f'{rotation_calc_markup(compact=True)}'

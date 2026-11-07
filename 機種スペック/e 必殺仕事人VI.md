@@ -39,9 +39,9 @@
 | 電サポ | （状態）RUSH／電サポ中 | 液晶「右打ち」表示中 |
 | 右打ちランプ | 盤面下〜電チュー付近 | 点灯中は右打ち。豪剣フラッシュとは別 |
 
-![盤面ガイド](images/board-guide.svg)
+![盤面ガイド](images/board-guide.png)
 
-![右打ちまわり](images/right-hit-guide.svg)
+![右打ちまわり](images/right-hit-guide.png)
 
 ## おすすめカスタム
 

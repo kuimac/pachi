@@ -60,9 +60,9 @@
 | 電サポ | （状態）ラッシュ／電サポ中 | 液晶「右打ち」表示中 |
 | 右打ちランプ | 電チュー横〜盤面下 | 点灯中は右打ち |
 
-![盤面ガイド](images/board-guide.svg)
+![盤面ガイド](images/board-guide.png)
 
-![右打ちまわり](images/right-hit-guide.svg)
+![右打ちまわり](images/right-hit-guide.png)
 
 - 貫けランプや無名役物と取り違えない。右打ち切替は液晶優先。
 

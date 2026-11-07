@@ -40,9 +40,9 @@
 | 電サポ | （状態）時短・ST・RUSH中 | 液晶の「右打ち」表示中 |
 | 右打ちランプ | 盤面右下〜電チュー周辺 | 点灯＋液晶表示をセットで見る |
 
-![盤面ガイド](images/board-guide.svg)
+![盤面ガイド](images/board-guide.png)
 
-![右打ちまわり](images/right-hit-guide.svg)
+![右打ちまわり](images/right-hit-guide.png)
 
 - 魚群やボタン演出に目が行きやすいが、右打ち切替は液晶を優先。
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 import re
 from html import escape, unescape
@@ -452,6 +453,42 @@ def title_of(text: str, fallback: str) -> str:
     return match.group(1).strip() if match else fallback
 
 
+def load_machine_borders() -> list[dict[str, object]]:
+    """攻略情報の等価ボーダー一覧。機種名サジェスト用。"""
+    guide_dir = ROOT / "攻略情報"
+    if not guide_dir.is_dir():
+        return []
+    items: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for path in sorted(guide_dir.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        match = re.search(r"\|\s*4\.00円（等価）\s*\|\s*([^|]+)\|", text)
+        if not match:
+            continue
+        raw = match.group(1).strip()
+        nums = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", raw)]
+        if not nums:
+            continue
+        if len(nums) >= 2 and re.search(r"[〜～~\-－]", raw):
+            border = round((nums[0] + nums[1]) / 2, 1)
+        else:
+            border = nums[0]
+        title = title_of(text, path.stem)
+        key = site_name(path.stem)
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(
+            {
+                "name": title,
+                "border": border,
+                "find": aliases_for(title),
+            }
+        )
+    items.sort(key=lambda row: str(row["name"]))
+    return items
+
+
 def table_sort_script() -> str:
     return """
 <script>
@@ -631,15 +668,20 @@ def rotation_calc_markup(compact: bool = False) -> str:
 """
 
 
-def exchange_profit_markup(compact: bool = False) -> str:
-    """4パチ・交換率ごとの期待収支。等価ボーダーと実測回転率から表を作る。"""
+def exchange_profit_markup(
+    machines: list[dict[str, object]] | None = None,
+    compact: bool = False,
+) -> str:
+    """4パチ・交換率ごとの期待収支。機種名サジェストで等価ボーダーを入れられる。"""
+    machines = machines if machines is not None else load_machine_borders()
+    machines_json = json.dumps(machines, ensure_ascii=False)
     note = (
         "<p class=\"calc-note\">貸玉4円。交換単価は玉数から換算（28玉→約3.57円）。"
         "各交換のボーダーは <code>等価ボーダー × √(4 ÷ 交換単価)</code>。"
         "期待差玉は <code>回転数 × 250 × (1/ボーダー − 1/回転率)</code>。"
-        "機種スペックの等価ボーダーを入れる。</p>"
+        "機種名で検索すると攻略情報の等価ボーダーが入る。手入力でも上書きできる。</p>"
         if not compact
-        else "<p class=\"calc-note\">4パチ。ボーダーは √換算。単位は玉（下段は円）。</p>"
+        else "<p class=\"calc-note\">機種名で検索可。ボーダーは √換算。単位は玉（下段は円）。</p>"
     )
     spins_ui = ""
     if not compact:
@@ -654,10 +696,18 @@ def exchange_profit_markup(compact: bool = False) -> str:
     <h2 id="profit-title">4パチ 交換率別の期待収支</h2>
     <p class="calc-formula"><code>差玉 = 回転数 × 250 × (1/ボーダー − 1/回転率)</code></p>
   </div>
+  <div class="calc-field calc-machine">
+    <span>機種名</span>
+    <div class="suggest" id="profit-suggest">
+      <input id="profit-machine" type="search" inputmode="search" placeholder="鬼がかり、なのは、電音部…" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="profit-suggest-list" aria-expanded="false">
+      <ul id="profit-suggest-list" class="suggest-list" role="listbox" hidden></ul>
+    </div>
+    <p class="calc-picked" id="profit-picked" hidden></p>
+  </div>
   <div class="calc-grid calc-grid-profit">
     <label class="calc-field">
       <span>等価ボーダー</span>
-      <input id="profit-border" type="number" inputmode="decimal" step="0.1" min="1" placeholder="例 17.5" autocomplete="off">
+      <input id="profit-border" type="number" inputmode="decimal" step="0.1" min="1" placeholder="機種を選ぶか手入力" autocomplete="off">
     </label>
     <label class="calc-field">
       <span>実測回転率（/1000円）</span>
@@ -707,9 +757,14 @@ def exchange_profit_markup(compact: bool = False) -> str:
 </section>
 <script>
 (() => {{
+  const MACHINES = {machines_json};
   const borderEl = document.getElementById('profit-border');
   const rateEl = document.getElementById('profit-rate');
   const spinsEl = document.getElementById('profit-spins');
+  const machineEl = document.getElementById('profit-machine');
+  const suggestRoot = document.getElementById('profit-suggest');
+  const suggestList = document.getElementById('profit-suggest-list');
+  const pickedEl = document.getElementById('profit-picked');
   const body = document.getElementById('profit-body');
   const eqBorder = document.getElementById('profit-eq-border');
   const ball28 = document.getElementById('profit-ball-28');
@@ -725,6 +780,8 @@ def exchange_profit_markup(compact: bool = False) -> str:
     {{ label: '4.0', balls: 25 }}
   ];
   const RATES = [16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
+  let activeIndex = -1;
+  let matches = [];
 
   const num = (el) => {{
     const v = el.value.trim();
@@ -734,9 +791,7 @@ def exchange_profit_markup(compact: bool = False) -> str:
   }};
 
   const yenOf = (balls) => 100 / balls;
-
   const borderAt = (borderEq, yen) => borderEq * Math.sqrt(4 / yen);
-
   const netBalls = (spins, rate, border) => spins * 250 * (1 / border - 1 / rate);
 
   const fmtBalls = (n) => {{
@@ -745,15 +800,81 @@ def exchange_profit_markup(compact: bool = False) -> str:
     if (rounded > 0) return '+' + rounded.toLocaleString('ja-JP');
     return rounded.toLocaleString('ja-JP');
   }};
-
   const fmtYen = (n) => {{
     if (!Number.isFinite(n)) return '—';
     const rounded = Math.round(n);
     if (rounded > 0) return '+' + rounded.toLocaleString('ja-JP') + '円';
     return rounded.toLocaleString('ja-JP') + '円';
   }};
-
   const cellClass = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+
+  const normalize = (text) => (text || '').toLowerCase().replace(/\\s+/g, '');
+
+  const filterMachines = (query) => {{
+    const q = normalize(query);
+    if (!q) return MACHINES.slice(0, 12);
+    return MACHINES.filter((m) => normalize(m.find || m.name).includes(q)).slice(0, 12);
+  }};
+
+  const hideSuggest = () => {{
+    if (!suggestList || !machineEl) return;
+    suggestList.hidden = true;
+    suggestList.innerHTML = '';
+    machineEl.setAttribute('aria-expanded', 'false');
+    activeIndex = -1;
+    matches = [];
+  }};
+
+  const showSuggest = (items) => {{
+    if (!suggestList || !machineEl) return;
+    matches = items;
+    activeIndex = items.length ? 0 : -1;
+    suggestList.innerHTML = '';
+    if (!items.length) {{
+      hideSuggest();
+      return;
+    }}
+    items.forEach((m, index) => {{
+      const li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.id = 'profit-opt-' + index;
+      li.dataset.index = String(index);
+      if (index === activeIndex) li.setAttribute('aria-selected', 'true');
+      li.innerHTML = `<span class="suggest-name">${{m.name}}</span>`
+        + `<span class="suggest-border">${{m.border}}</span>`;
+      li.addEventListener('mousedown', (event) => {{
+        event.preventDefault();
+        pickMachine(m);
+      }});
+      suggestList.appendChild(li);
+    }});
+    suggestList.hidden = false;
+    machineEl.setAttribute('aria-expanded', 'true');
+  }};
+
+  const pickMachine = (m) => {{
+    if (!m) return;
+    if (machineEl) machineEl.value = m.name;
+    borderEl.value = String(m.border);
+    if (pickedEl) {{
+      pickedEl.hidden = false;
+      pickedEl.textContent = `${{m.name}} → 等価ボーダー ${{m.border}}`;
+    }}
+    hideSuggest();
+    render();
+    rateEl.focus();
+  }};
+
+  const moveActive = (delta) => {{
+    if (!matches.length || !suggestList) return;
+    activeIndex = (activeIndex + delta + matches.length) % matches.length;
+    [...suggestList.children].forEach((li, index) => {{
+      if (index === activeIndex) li.setAttribute('aria-selected', 'true');
+      else li.removeAttribute('aria-selected');
+    }});
+    const active = suggestList.children[activeIndex];
+    if (active) active.scrollIntoView({{ block: 'nearest' }});
+  }};
 
   const render = () => {{
     const borderEq = num(borderEl);
@@ -767,7 +888,7 @@ def exchange_profit_markup(compact: bool = False) -> str:
     if (yen28) yen28.parentElement.classList.remove('good', 'bad');
 
     if (borderEq == null || borderEq <= 0 || spins == null || spins <= 0) {{
-      body.innerHTML = '<tr><td colspan="6">等価ボーダーと回転数を入れると表が出ます。</td></tr>';
+      body.innerHTML = '<tr><td colspan="6">機種を選ぶか等価ボーダーを入れると表が出ます。</td></tr>';
       return;
     }}
     if (caption) {{
@@ -823,11 +944,51 @@ def exchange_profit_markup(compact: bool = False) -> str:
     }}
   }};
 
+  if (machineEl && suggestList) {{
+    machineEl.addEventListener('input', () => {{
+      if (pickedEl) {{
+        pickedEl.hidden = true;
+        pickedEl.textContent = '';
+      }}
+      showSuggest(filterMachines(machineEl.value));
+    }});
+    machineEl.addEventListener('focus', () => {{
+      showSuggest(filterMachines(machineEl.value));
+    }});
+    machineEl.addEventListener('keydown', (event) => {{
+      if (suggestList.hidden && (event.key === 'ArrowDown' || event.key === 'Enter')) {{
+        showSuggest(filterMachines(machineEl.value));
+      }}
+      if (suggestList.hidden) return;
+      if (event.key === 'ArrowDown') {{
+        event.preventDefault();
+        moveActive(1);
+      }} else if (event.key === 'ArrowUp') {{
+        event.preventDefault();
+        moveActive(-1);
+      }} else if (event.key === 'Enter') {{
+        event.preventDefault();
+        if (activeIndex >= 0) pickMachine(matches[activeIndex]);
+      }} else if (event.key === 'Escape') {{
+        hideSuggest();
+      }}
+    }});
+    document.addEventListener('click', (event) => {{
+      if (suggestRoot && !suggestRoot.contains(event.target)) hideSuggest();
+    }});
+  }}
+
   [borderEl, rateEl, spinsEl].forEach((el) => {{
     el.addEventListener('input', render);
     el.addEventListener('change', render);
   }});
-  document.querySelectorAll('[data-set-spins]').forEach((btn) => {{
+  borderEl.addEventListener('input', () => {{
+    if (pickedEl && !pickedEl.hidden) {{
+      pickedEl.textContent = (pickedEl.textContent.split('→')[0] || '').trim()
+        + (borderEl.value ? ` → 等価ボーダー ${{borderEl.value}}（手入力）` : '');
+    }}
+  }});
+  document.querySelectorAll('#profit-calc [data-set-spins]').forEach((btn) => {{
     btn.addEventListener('click', () => {{
       spinsEl.value = btn.dataset.setSpins;
       spinsEl.focus();
@@ -835,14 +996,6 @@ def exchange_profit_markup(compact: bool = False) -> str:
     }});
   }});
 
-  // 上の回転率計算の結果を、あれば初期値に使う
-  const syncFromRotation = () => {{
-    const calcRate = document.getElementById('calc-rate');
-    if (!calcRate || rateEl.value.trim() !== '') return;
-    const text = calcRate.textContent.trim();
-    const n = Number(text);
-    if (Number.isFinite(n) && text !== '—') rateEl.value = String(n);
-  }};
   const calcInputs = ['calc-initial', 'calc-balls', 'calc-current']
     .map((id) => document.getElementById(id))
     .filter(Boolean);
@@ -856,15 +1009,15 @@ def exchange_profit_markup(compact: bool = False) -> str:
       render();
     }}
   }}));
-  syncFromRotation();
   render();
 }})();
 </script>
 """
 
 
-def build_tools_page() -> Path:
+def build_tools_page(machines: list[dict[str, object]] | None = None) -> Path:
     """tools/ 直下を index にし、/tools/ が 404 にならないようにする。"""
+    machines = machines if machines is not None else load_machine_borders()
     dest = OUT / "tools" / "index.html"
     page = shell(
         dest,
@@ -872,9 +1025,9 @@ def build_tools_page() -> Path:
         crumb(dest, [("目次", OUT / "index.html", ""), ("計算ツール", None)]),
         f"""
 <h1>計算ツール</h1>
-<p class="intro">回転率の実測と、4パチ交換率ごとの期待収支を出します。使った玉数は +125 で足せます。</p>
+<p class="intro">回転率の実測と、4パチ交換率ごとの期待収支を出します。使った玉数は +125 で足せます。等価ボーダーは機種名で検索できます。</p>
 {rotation_calc_markup(compact=False)}
-{exchange_profit_markup(compact=False)}
+{exchange_profit_markup(machines, compact=False)}
 """,
         wide=True,
     )
@@ -1634,10 +1787,11 @@ def build_index(
         search_pairs = [("explain", "explain-cards"), *search_pairs]
 
     tool_page = OUT / "tools" / "index.html"
+    machines = load_machine_borders()
     tools_block = (
         '<p class="section-label" id="tools">ツール</p>'
         f'{rotation_calc_markup(compact=True)}'
-        f'{exchange_profit_markup(compact=True)}'
+        f'{exchange_profit_markup(machines, compact=True)}'
         f'<p class="calc-more"><a href="{href(dest, tool_page)}">計算ツールを開く</a></p>'
     )
 
@@ -1896,7 +2050,8 @@ def main() -> None:
             )
         )
 
-    build_tools_page()
+    machines = load_machine_borders()
+    build_tools_page(machines)
     build_index(
         index_store_cards,
         guide_cards,

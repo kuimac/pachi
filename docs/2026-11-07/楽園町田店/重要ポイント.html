@@ -115,5 +115,71 @@
 <p>前日の最高出玉は日をまたがない。<a class="unit-link" href="../../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/e%20Re%EF%BC%9A%E3%82%BC%E3%83%AD%E3%81%8B%E3%82%89%E5%A7%8B%E3%82%81%E3%82%8B%E7%95%B0%E4%B8%96%E7%95%8C%E7%94%9F%E6%B4%BB%20%E9%AC%BC%E3%81%8C%E3%81%8B%E3%82%8A2/1261/index.html">1261</a>の43,870個、<a class="unit-link" href="../../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/e%E3%83%AA%E3%82%B3%E3%83%AA%E3%82%B9%E3%83%BB%E3%83%AA%E3%82%B3%E3%82%A4%E3%83%ABM3/1182/index.html">1182</a>の47,430個、<a class="unit-link" href="../../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/P%E3%83%89%E3%83%A9%E3%83%A0de%E9%9B%BB%E9%9F%B3%E9%83%A8%20%E8%B6%85%E3%83%89%E3%83%A9%E7%86%B14500Ver/1072/index.html">1072</a>の14,580個は、11月6日の中の記録。コンプリートのカウントも1日で切れる。翌朝の内部状態には残らない。</p>
 <p><a class="unit-link" href="../../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/e%20Re%EF%BC%9A%E3%82%BC%E3%83%AD%E3%81%8B%E3%82%89%E5%A7%8B%E3%82%81%E3%82%8B%E7%95%B0%E4%B8%96%E7%95%8C%E7%94%9F%E6%B4%BB%20%E9%AC%BC%E3%81%8C%E3%81%8B%E3%82%8A2/1256/index.html">1256</a>の1,605回転、<a class="unit-link" href="../../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/e%20Re%EF%BC%9A%E3%82%BC%E3%83%AD%E3%81%8B%E3%82%89%E5%A7%8B%E3%82%81%E3%82%8B%E7%95%B0%E4%B8%96%E7%95%8C%E7%94%9F%E6%B4%BB%20%E9%AC%BC%E3%81%8C%E3%81%8B%E3%82%8A2/1258/index.html">1258</a>の1,220回転、<a class="unit-link" href="../../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/e%20Re%EF%BC%9A%E3%82%BC%E3%83%AD%E3%81%8B%E3%82%89%E5%A7%8B%E3%82%81%E3%82%8B%E7%95%B0%E4%B8%96%E7%95%8C%E7%94%9F%E6%B4%BB%20%E9%AC%BC%E3%81%8C%E3%81%8B%E3%82%8A2/1270/index.html">1270</a>の860回転、<a class="unit-link" href="../../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/e%E3%83%97%E3%83%AA%E3%83%B3%E3%82%BB%E3%82%B9%E3%83%BB%E3%83%97%E3%83%AA%E3%83%B3%E3%82%B7%E3%83%91%E3%83%AB/1061/index.html">1061</a>の706回転は、天井がない機種の通常時。次の1回転の確率は、スタートが一桁の台と同じ。<a class="unit-link" href="../../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/e%20Re%EF%BC%9A%E3%82%BC%E3%83%AD%E3%81%8B%E3%82%89%E5%A7%8B%E3%82%81%E3%82%8B%E7%95%B0%E4%B8%96%E7%95%8C%E7%94%9F%E6%B4%BB%20%E9%AC%BC%E3%81%8C%E3%81%8B%E3%82%8A2/1270/index.html">1270</a>は推定17.7でボーダーに近いが、860だから上なのではない。</p></section><p class="foot">元ファイル <code>2026-11-07/楽園町田店/重要ポイント.md</code></p>
 </main>
+
+<script>
+(() => {
+  const parse = (text) => {
+    const raw = (text || '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw === '—' || raw === '-' || raw === '－') return { n: null, s: '' };
+    const cleaned = raw
+      .replace(/,/g, '')
+      .replace(/[＋]/g, '+')
+      .replace(/[−－]/g, '-')
+      .replace(/円(\/千円|\/朝)?$/u, '')
+      .replace(/%$/u, '')
+      .replace(/個$/u, '')
+      .replace(/回$/u, '')
+      .replace(/G$/iu, '');
+    if (/^[+-]?\d+(\.\d+)?$/.test(cleaned)) return { n: Number(cleaned), s: raw };
+    return { n: null, s: raw.toLowerCase() };
+  };
+  const cellText = (td) => (td ? td.innerText || td.textContent || '' : '');
+  document.querySelectorAll('table').forEach((table) => {
+    const headRow = table.tHead && table.tHead.rows[0];
+    const body = table.tBodies[0];
+    if (!headRow || !body || body.rows.length < 2) return;
+    table.classList.add('sortable');
+    [...headRow.cells].forEach((th, col) => {
+      if (th.colSpan > 1) return;
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      th.setAttribute('aria-sort', 'none');
+      const activate = () => {
+        const asc = th.dataset.sort !== 'asc';
+        [...headRow.cells].forEach((cell) => {
+          delete cell.dataset.sort;
+          cell.setAttribute('aria-sort', 'none');
+        });
+        th.dataset.sort = asc ? 'asc' : 'desc';
+        th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+        const rows = [...body.rows].map((row, index) => {
+          const value = parse(cellText(row.cells[col]));
+          return { row, index, value };
+        });
+        rows.sort((a, b) => {
+          const an = a.value.n;
+          const bn = b.value.n;
+          let cmp = 0;
+          if (an != null && bn != null) cmp = an - bn;
+          else if (an != null) cmp = -1;
+          else if (bn != null) cmp = 1;
+          else cmp = a.value.s.localeCompare(b.value.s, 'ja');
+          if (cmp === 0) cmp = a.index - b.index;
+          return asc ? cmp : -cmp;
+        });
+        rows.forEach(({ row }) => body.appendChild(row));
+      };
+      th.addEventListener('click', activate);
+      th.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+  });
+})();
+</script>
+
 </body>
 </html>

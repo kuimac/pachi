@@ -122,6 +122,32 @@ th {
   background: #f7f3ec;
   white-space: nowrap;
 }
+table.sortable th {
+  cursor: pointer;
+  user-select: none;
+  padding-right: 1.15em;
+  position: relative;
+}
+table.sortable th:hover { color: var(--accent); }
+table.sortable th::after {
+  content: "⇅";
+  position: absolute;
+  right: 0.2em;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.72em;
+  opacity: 0.28;
+}
+table.sortable th[data-sort="asc"]::after {
+  content: "▲";
+  opacity: 0.85;
+  color: var(--accent);
+}
+table.sortable th[data-sort="desc"]::after {
+  content: "▼";
+  opacity: 0.85;
+  color: var(--accent);
+}
 tbody tr:nth-child(even) td { background: #fbf9f5; }
 tr.is-today td { background: var(--today); }
 td.pos { color: var(--good); font-weight: 700; }

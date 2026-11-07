@@ -109,5 +109,71 @@
 <p>CZ10回転勝負の藤商事機。RUSH継続77%。遊タイムなし。</p>
 <p>出典: 藤商事公式、HAZUSE、必勝本</p></section><div class="related"><a href="../%E6%94%BB%E7%95%A5%E6%83%85%E5%A0%B1/%E3%81%B2%E3%81%8D%E3%81%93%E3%81%BE%E3%82%8A%E5%90%B8%E8%A1%80%E5%A7%AB%E3%81%AE%E6%82%B6%E3%80%85.html">攻略</a><a href="../%E4%B8%AD%E5%B1%B1UNO/%E3%81%B2%E3%81%8D%E3%81%93%E3%81%BE%E3%82%8A%E5%90%B8%E8%A1%80%E5%A7%AB%E3%81%AE%E6%82%B6%E3%80%85/219/index.html">219</a></div><p class="foot">元ファイル <code>機種スペック/ひきこまり吸血姫の悶々.md</code></p>
 </main>
+
+<script>
+(() => {
+  const parse = (text) => {
+    const raw = (text || '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw === '—' || raw === '-' || raw === '－') return { n: null, s: '' };
+    const cleaned = raw
+      .replace(/,/g, '')
+      .replace(/[＋]/g, '+')
+      .replace(/[−－]/g, '-')
+      .replace(/円(\/千円|\/朝)?$/u, '')
+      .replace(/%$/u, '')
+      .replace(/個$/u, '')
+      .replace(/回$/u, '')
+      .replace(/G$/iu, '');
+    if (/^[+-]?\d+(\.\d+)?$/.test(cleaned)) return { n: Number(cleaned), s: raw };
+    return { n: null, s: raw.toLowerCase() };
+  };
+  const cellText = (td) => (td ? td.innerText || td.textContent || '' : '');
+  document.querySelectorAll('table').forEach((table) => {
+    const headRow = table.tHead && table.tHead.rows[0];
+    const body = table.tBodies[0];
+    if (!headRow || !body || body.rows.length < 2) return;
+    table.classList.add('sortable');
+    [...headRow.cells].forEach((th, col) => {
+      if (th.colSpan > 1) return;
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      th.setAttribute('aria-sort', 'none');
+      const activate = () => {
+        const asc = th.dataset.sort !== 'asc';
+        [...headRow.cells].forEach((cell) => {
+          delete cell.dataset.sort;
+          cell.setAttribute('aria-sort', 'none');
+        });
+        th.dataset.sort = asc ? 'asc' : 'desc';
+        th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+        const rows = [...body.rows].map((row, index) => {
+          const value = parse(cellText(row.cells[col]));
+          return { row, index, value };
+        });
+        rows.sort((a, b) => {
+          const an = a.value.n;
+          const bn = b.value.n;
+          let cmp = 0;
+          if (an != null && bn != null) cmp = an - bn;
+          else if (an != null) cmp = -1;
+          else if (bn != null) cmp = 1;
+          else cmp = a.value.s.localeCompare(b.value.s, 'ja');
+          if (cmp === 0) cmp = a.index - b.index;
+          return asc ? cmp : -cmp;
+        });
+        rows.forEach(({ row }) => body.appendChild(row));
+      };
+      th.addEventListener('click', activate);
+      th.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+  });
+})();
+</script>
+
 </body>
 </html>

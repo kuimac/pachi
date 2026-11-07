@@ -149,6 +149,21 @@ def load_store_stations() -> dict[str, str]:
     return load_store_field("最寄り駅", guess_station)
 
 
+def load_store_exchanges() -> list[dict[str, object]]:
+    """店舗一覧の交換玉。未記載は28玉（東京4パチの標準）。"""
+    raw = load_store_field("交換", lambda _store: "28玉")
+    stores: list[dict[str, object]] = []
+    for name, value in raw.items():
+        match = re.search(r"(\d+)\s*玉", value)
+        balls = int(match.group(1)) if match else 28
+        if balls not in (40, 33, 30, 28, 25):
+            # 表に無い玉数はいちばん近い列へ寄せる
+            balls = min((40, 33, 30, 28, 25), key=lambda n: abs(n - balls))
+        stores.append({"name": name, "balls": balls, "label": f"{balls}玉"})
+    stores.sort(key=lambda row: str(row["name"]))
+    return stores
+
+
 def date_label(iso: str) -> str:
     match = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", iso)
     if not match:
@@ -670,18 +685,29 @@ def rotation_calc_markup(compact: bool = False) -> str:
 
 def exchange_profit_markup(
     machines: list[dict[str, object]] | None = None,
+    stores: list[dict[str, object]] | None = None,
     compact: bool = False,
 ) -> str:
-    """4パチ・交換率ごとの期待収支。機種名サジェストで等価ボーダーを入れられる。"""
+    """4パチ・交換率ごとの期待収支。機種名サジェストと店舗ごとの交換率。"""
     machines = machines if machines is not None else load_machine_borders()
+    stores = stores if stores is not None else load_store_exchanges()
     machines_json = json.dumps(machines, ensure_ascii=False)
+    stores_json = json.dumps(stores, ensure_ascii=False)
+    store_options = ['<option value="">店舗を選ぶ（任意）</option>']
+    for store in stores:
+        name = str(store["name"])
+        balls = store["balls"]
+        store_options.append(
+            f'<option value="{escape(name)}" data-balls="{balls}">'
+            f"{escape(name)}（{balls}玉）</option>"
+        )
     note = (
-        "<p class=\"calc-note\">貸玉4円。交換単価は玉数から換算（28玉→約3.57円）。"
+        "<p class=\"calc-note\">貸玉4円。店舗を選ぶと交換率が入る（手で変えられる）。"
         "各交換のボーダーは <code>等価ボーダー × √(4 ÷ 交換単価)</code>。"
         "期待差玉は <code>回転数 × 250 × (1/ボーダー − 1/回転率)</code>。"
-        "機種名で検索すると攻略情報の等価ボーダーが入る。手入力でも上書きできる。</p>"
+        "機種名で検索すると攻略情報の等価ボーダーが入る。</p>"
         if not compact
-        else "<p class=\"calc-note\">機種名で検索可。ボーダーは √換算。単位は玉（下段は円）。</p>"
+        else "<p class=\"calc-note\">店舗で交換率を選べる。機種名検索可。単位は玉（下段は円）。</p>"
     )
     spins_ui = ""
     if not compact:
@@ -695,6 +721,22 @@ def exchange_profit_markup(
   <div class="calc-head">
     <h2 id="profit-title">4パチ 交換率別の期待収支</h2>
     <p class="calc-formula"><code>差玉 = 回転数 × 250 × (1/ボーダー − 1/回転率)</code></p>
+  </div>
+  <div class="calc-grid calc-grid-store">
+    <label class="calc-field">
+      <span>店舗（任意）</span>
+      <select id="profit-store">{"".join(store_options)}</select>
+    </label>
+    <label class="calc-field">
+      <span>この店の交換率</span>
+      <select id="profit-exchange">
+        <option value="40">40玉（2.5円）</option>
+        <option value="33">33玉（約3.03円）</option>
+        <option value="30">30玉（約3.33円）</option>
+        <option value="28" selected>28玉（約3.57円）</option>
+        <option value="25">25玉（4.0円・等価）</option>
+      </select>
+    </label>
   </div>
   <div class="calc-field calc-machine">
     <span>機種名</span>
@@ -729,12 +771,12 @@ def exchange_profit_markup(
       <span>等価ボーダー</span>
     </div>
     <div class="stat">
-      <b id="profit-ball-28">—</b>
-      <span>28玉の差玉</span>
+      <b id="profit-focus-balls">—</b>
+      <span id="profit-focus-balls-label">選択交換の差玉</span>
     </div>
     <div class="stat">
-      <b id="profit-yen-28">—</b>
-      <span>28玉の収支円</span>
+      <b id="profit-focus-yen">—</b>
+      <span id="profit-focus-yen-label">選択交換の収支円</span>
     </div>
   </div>
   <div class="table-wrap">
@@ -742,11 +784,11 @@ def exchange_profit_markup(
       <thead>
         <tr>
           <th>回転率</th>
-          <th class="num">2.5円<br><small>40玉</small></th>
-          <th class="num">3.0円<br><small>33玉</small></th>
-          <th class="num">3.3円<br><small>30玉</small></th>
-          <th class="num">3.5円<br><small>28玉</small></th>
-          <th class="num">4.0円<br><small>25玉</small></th>
+          <th class="num" data-balls="40">2.5円<br><small>40玉</small></th>
+          <th class="num" data-balls="33">3.0円<br><small>33玉</small></th>
+          <th class="num" data-balls="30">3.3円<br><small>30玉</small></th>
+          <th class="num" data-balls="28">3.5円<br><small>28玉</small></th>
+          <th class="num" data-balls="25">4.0円<br><small>25玉</small></th>
         </tr>
       </thead>
       <tbody id="profit-body"></tbody>
@@ -758,19 +800,25 @@ def exchange_profit_markup(
 <script>
 (() => {{
   const MACHINES = {machines_json};
+  const STORES = {stores_json};
   const borderEl = document.getElementById('profit-border');
   const rateEl = document.getElementById('profit-rate');
   const spinsEl = document.getElementById('profit-spins');
+  const storeEl = document.getElementById('profit-store');
+  const exchangeEl = document.getElementById('profit-exchange');
   const machineEl = document.getElementById('profit-machine');
   const suggestRoot = document.getElementById('profit-suggest');
   const suggestList = document.getElementById('profit-suggest-list');
   const pickedEl = document.getElementById('profit-picked');
   const body = document.getElementById('profit-body');
   const eqBorder = document.getElementById('profit-eq-border');
-  const ball28 = document.getElementById('profit-ball-28');
-  const yen28 = document.getElementById('profit-yen-28');
+  const focusBalls = document.getElementById('profit-focus-balls');
+  const focusYen = document.getElementById('profit-focus-yen');
+  const focusBallsLabel = document.getElementById('profit-focus-balls-label');
+  const focusYenLabel = document.getElementById('profit-focus-yen-label');
   const caption = document.getElementById('profit-caption');
-  if (!borderEl || !rateEl || !spinsEl || !body) return;
+  const table = document.getElementById('profit-table');
+  if (!borderEl || !rateEl || !spinsEl || !body || !exchangeEl) return;
 
   const EXCHANGES = [
     {{ label: '2.5', balls: 40 }},
@@ -782,6 +830,8 @@ def exchange_profit_markup(
   const RATES = [16,17,18,19,20,21,22,23,24,25,26,27,28,29,30];
   let activeIndex = -1;
   let matches = [];
+  const STORAGE_KEY = 'pachi-profit-exchange';
+
 
   const num = (el) => {{
     const v = el.value.trim();

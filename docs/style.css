@@ -84,6 +84,49 @@ h3 { font-size: 1.02rem; margin: 0 0 8px; }
 }
 .toc a:hover { border-color: var(--accent); color: var(--accent); }
 
+.toc-panel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin: 0 0 18px;
+  box-shadow: var(--shadow);
+}
+.toc-panel > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 11px 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+.toc-panel > summary::-webkit-details-marker { display: none; }
+.toc-panel > summary::after {
+  content: "＋";
+  float: right;
+  color: var(--muted);
+  font-weight: 500;
+}
+.toc-panel[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+.toc-panel[open] > summary::after { content: "−"; }
+.toc-panel nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 12px;
+}
+.toc-panel nav a {
+  color: var(--ink);
+  text-decoration: none;
+  padding: 9px 10px;
+  border-radius: 10px;
+}
+.toc-panel nav a:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent);
+}
+
 .block {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -656,7 +699,7 @@ summary::-webkit-details-marker { color: var(--accent); }
 }
 
 @media print {
-  .top, .toc, .search, .pager, .foot { display: none !important; }
+  .top, .toc, .toc-panel, .search, .pager, .foot { display: none !important; }
   body { background: white; }
   .block, .lede, .card, .stat, .chart { box-shadow: none; }
   a { color: inherit; text-decoration: none; }

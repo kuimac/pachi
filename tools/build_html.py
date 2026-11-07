@@ -1173,13 +1173,25 @@ def build_index(
     spec_cards: list[
         tuple[str, str, Path, Path | None, list[tuple[str, Path]], list[str]]
     ],
+    explain_cards: list[tuple[str, str, Path]] | None = None,
     store_regions: dict[str, str] | None = None,
     store_stations: dict[str, str] | None = None,
 ) -> None:
-    """store_cards: (day, store, summary, store_page, when)"""
+    """store_cards: (day, store, summary, store_page, when)
+    explain_cards: (title, summary, page)
+    """
     dest = OUT / "index.html"
     regions = store_regions or {}
     stations = store_stations or {}
+    explain_cards = explain_cards or []
+
+    explain_html = []
+    for title, summary, page in explain_cards:
+        explain_html.append(
+            f'<a class="card" data-find="{escape(title)} {escape(summary)}" href="{href(dest, page)}">'
+            f'<span class="kicker">解説</span><h3>{escape(title)}</h3>'
+            f"<p>{escape(summary)}</p></a>"
+        )
 
     date_html = []
     for day, store, summary, page, when in store_cards:
@@ -1231,11 +1243,21 @@ def build_index(
             f"<p>{escape(summary)}</p>{tags_html}</a>{extra}</div>"
         )
 
+    explain_block = ""
+    search_pairs = [("dates", "date-cards"), ("guide", "guide-cards"), ("spec", "spec-cards")]
+    if explain_html:
+        explain_block = (
+            '<p class="section-label" id="explain">解説</p>'
+            f'<div class="doc-grid" id="explain-cards">{"".join(explain_html)}</div>'
+        )
+        search_pairs = [("explain", "explain-cards"), *search_pairs]
+
     body = f"""
 <h1>控え</h1>
 <p class="intro">日付から店舗、詳細へと進みます。攻略とスペックは店舗共通です。</p>
 <input class="search" id="q" type="search" placeholder="日付、店舗、地域、駅、機種名（町田駅、中山、なのは）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
+{explain_block}
 <div class="section-head" id="dates">
   <p class="section-label">分析日</p>
   <div class="sort-bar" id="date-sort" role="group" aria-label="分析日の並び">
@@ -1250,7 +1272,7 @@ def build_index(
 <p class="section-label" id="spec">機種スペック</p>
 <div class="cards" id="spec-cards">{''.join(spec_html)}</div>
 <p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
-{search_script([("dates", "date-cards"), ("guide", "guide-cards"), ("spec", "spec-cards")])}
+{search_script(search_pairs)}
 {date_cards_sort_script()}
 """
     page = shell(dest, "控え", "目次", body, wide=True)
@@ -1262,6 +1284,8 @@ def main() -> None:
         path.unlink()
 
     guide_sources = sorted((ROOT / "攻略情報").glob("*.md"))
+    explain_dir = ROOT / "解説"
+    explain_sources = sorted(explain_dir.glob("*.md")) if explain_dir.is_dir() else []
     _spec_first = ("パチンコ用語一覧", "オカルトパチンコ動作一覧")
     spec_sources = sorted(
         (ROOT / "機種スペック").glob("*.md"),
@@ -1278,6 +1302,9 @@ def main() -> None:
 
     guide_out = {
         site_name(path.stem): OUT / "攻略情報" / f"{site_name(path.stem)}.html" for path in guide_sources
+    }
+    explain_out = {
+        site_name(path.stem): OUT / "解説" / f"{site_name(path.stem)}.html" for path in explain_sources
     }
     spec_out = {
         site_name(path.stem): OUT / "機種スペック" / f"{site_name(path.stem)}.html" for path in spec_sources
@@ -1368,6 +1395,17 @@ def main() -> None:
             spec_out,
             all_units_by_machine,
         )
+    for source in explain_sources:
+        dest = explain_out[site_name(source.stem)]
+        build_markdown(
+            source,
+            dest,
+            [("目次", OUT / "index.html", ""), ("解説", OUT / "index.html", "#explain")],
+            unit_map_for(dest),
+            guide_out,
+            spec_out,
+            all_units_by_machine,
+        )
     for source in spec_sources:
         dest = spec_out[site_name(source.stem)]
         build_markdown(
@@ -1436,6 +1474,12 @@ def main() -> None:
 
     index_store_cards.sort(key=_when_sort_key, reverse=True)
 
+    explain_cards = []
+    for source in explain_sources:
+        text = source.read_text(encoding="utf-8")
+        key = site_name(source.stem)
+        explain_cards.append((title_of(text, source.stem), blurb(text), explain_out[key]))
+
     guide_cards = []
     for source in guide_sources:
         text = source.read_text(encoding="utf-8")
@@ -1466,6 +1510,7 @@ def main() -> None:
         index_store_cards,
         guide_cards,
         spec_cards,
+        explain_cards,
         load_store_regions(),
         load_store_stations(),
     )

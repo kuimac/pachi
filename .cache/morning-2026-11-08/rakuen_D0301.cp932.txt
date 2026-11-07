@@ -1,0 +1,183 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="Shift_JIS">
+<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1">
+<title>楽園町田店 出玉情報</title>
+<link rel="stylesheet" href="contents/css/portal.css">
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-57RSXPP');</script>
+<!-- End Google Tag Manager --></head>
+<body bgcolor="#ffffff">
+    <div id="title">
+        楽園町田店</div>
+    <div id="header">
+    
+        大当りデータ<br>
+        機種選択
+    </div>
+
+    <div style="margin-bottom:15px;">
+			<ul class="tab-style-data">
+				<li class="">
+					<a href="D0301.do?pmc=22021031&amp;clc=01&amp;pan=1&amp;urt=-1">すべて</a>
+				</li>
+                <li class="active">
+                 <a  href="D0301.do?pmc=22021031&amp;clc=01&amp;pan=1&amp;urt=400" style="padding-right:8px;padding-left:8px;">【4】<br>パチ</a>
+                 </li>
+              <li class="">
+                 <a  href="D0301.do?pmc=22021031&amp;clc=01&amp;pan=1&amp;urt=100" style="padding-right:8px;padding-left:8px;">【1】<br>パチ</a>
+                 </li>
+              </ul>
+		</div>
+   <div class="model_link_body" style="clear:both;">
+    <div id="model_link">
+    <ul>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=025665&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>P新世紀エヴァンゲリオン１５　未来への咆哮 [28]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026135&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>e東京喰種 [27]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026348&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>e Re:ゼロから始める異世界生活 鬼がかり2 [24]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026300&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>ｅ 東京喰種 超デカ超一撃ver. [19]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026342&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>Ｐ 新世紀エヴァンゲリオン -319 RED- [17]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026186&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>Pスーパー海物語IN沖縄6 [13]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026350&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>eとある魔術の禁書目録3 [10]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026325&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>e ソードアート・オンライン アリシゼーション 夜空 [10]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026172&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>e牙狼12黄金騎士極限 [10]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=025817&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>PAスーパー海物語ＩＮ沖縄５ YBA [9]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026275&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>eリコリス・リコイルM3 [8]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026321&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>eF.機動戦士ガンダムSEED CLIMAX [7]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026224&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>ｅ 新世紀エヴァンゲリオン ～はじまりの記憶～ [7]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=025949&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>Pポチッと一発おだてブタ２ V1 [6]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026331&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>PA大海物語アグネスプレミアRBA [5]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026311&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>e 必殺仕事人VI [5]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=025834&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>P大海物語５ MTE2 [5]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=025590&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>PニュートキオV1 [5]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026352&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>eプリンセス・プリンシパル [4]</li>
+			</a>
+    <a href="D2301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;mdc=026263&amp;bn=1">
+				<li><div style="float:right;"><img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></div>P Re：ゼロから始める異世界生活 season2 249Ver. [4]</li>
+			</a>
+    </ul>
+	</div>
+	</div>
+    <div class="list_navigation">
+        <div style="float:right;"><a href="D0301.do?pmc=22021031&amp;clc=01&amp;urt=400&amp;pan=2">次へ<img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></a></div>
+        </div>
+
+    <div id="footer">
+    <a href="http://www.parao.net/sp/machida"><img src="contents/images/portal/y1.gif" border="0" style="vertical-align:middle;">ホールトップへ戻る</a>
+    <div style="float:right;">
+	<a href="D0301.do?pmc=22021031&amp;clc=03&amp;pan=1&amp;urt=-1">
+	        	パチスロへ <img src="contents/images/portal/y2.gif" border="0" style="vertical-align:middle;"></a>
+	</div>
+    <div style="padding-top: 16px;"><a href="contents/html/portal_kiyaku.html"><img src="contents/images/portal/y1.gif" border="0" style="vertical-align:middle;">利用規約</a></div>
+    <div style="padding-top: 16px;"><a href="contents/html/portal-cookie-policy.html"><img src="contents/images/portal/y1.gif" border="0" style="vertical-align:middle;">Cookieポリシー</a></div>
+    </div>
+    <div align="center" style="margin-bottom:10px;"><a href="http://m.site777.jp" target="_blank"><img src="contents/images/portal/sumaho.png" /></a></div><!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-57RSXPP"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+<script src="contents/js/s7/jquery-1.10.0.min.js"></script>
+<style>
+	.overlay-cookie-policy {
+		position: fixed;
+		bottom:0;
+		left:0;
+		z-index:10000;
+		padding:5px 20px 20px 20px;
+		background: rgba(30,30,30,0.95);
+	}
+
+	.overlay-cookie-policy p {
+		color:white;
+        font-size: 16px;
+		line-height: 1.2;
+	}
+
+	.overlay-cookie-policy .agree {
+		margin-top: 10px;
+		text-align: center;
+	}
+
+	.overlay-cookie-policy .agree button {
+		padding:10px 25px;
+        background: none;
+		color:white;
+        font-size: 16px;
+		font-weight: bold;
+		border:2px solid white;
+	}
+</style>
+
+<script type="text/javascript">
+	$(function(){
+		$('.agree button').click(function(){
+
+			$('.overlay-cookie-policy').hide();
+			var deferred = new $.Deferred();
+
+			$.ajax({
+		        url : 'CommonSetCookie.do?key=cookie.policy.portal.agree&value=1678927575000',
+		        type : 'GET',
+		        async : true,
+		        timeout : '10000',
+		        error : function(xhr, status, e) {
+	        		console.log(xhr, status, e);
+		        }
+			}).always(function(){
+				deferred.resolve();
+			});
+		});
+	})
+</script>
+
+<div class="overlay-cookie-policy" >
+    <p>サイトセブンでは、利便性向上やサイト改善のためにCookieを使用します。<br>
+    詳細は<a href="contents/html/portal-cookie-policy.html" style="color:white;text-decoration: underline;">Cookieポリシー</a>をご参照ください。<br>
+    なお、ブラウザの設定でCookieを無効にすることも可能ですが、サイトの機能が十分にご利用いただく事が出来なくなります。</p>
+    <div class="agree">
+        <button>承諾する</button>
+    </div>
+</div>
+</body>
+</html>

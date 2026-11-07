@@ -1588,9 +1588,21 @@ def build_markdown(
     title = title_of(text, source.stem)
     fragment = markdown.markdown(text, extensions=["tables", "sane_lists"])
     fragment = re.sub(r'href="([^"]+?)\.md"', lambda match: f'href="{url_path(match.group(1))}.html"', fragment)
+
+    def encode_img_src(match: re.Match[str]) -> str:
+        alt = match.group(1)
+        src = match.group(2)
+        # 相対パスの各セグメントをパーセントエンコード（日本語ファイル名対策）
+        encoded = "/".join(quote(part, safe=".+-_~") for part in src.split("/"))
+        return (
+            f'<figure class="panel-fig">'
+            f'<img alt="{alt}" src="{encoded}" loading="lazy" />'
+            f"</figure>"
+        )
+
     fragment = re.sub(
-        r'<p><img (alt="[^"]*" src="[^"]+") /></p>',
-        r'<figure class="panel-fig"><img \1 loading="lazy" /></figure>',
+        r'<p><img alt="([^"]*)" src="([^"]+)" /></p>',
+        encode_img_src,
         fragment,
     )
     fragment = re.sub(r"^\s*<h1>.*?</h1>\s*", "", fragment, count=1, flags=re.S)

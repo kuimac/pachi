@@ -103,6 +103,34 @@ def load_store_aliases() -> dict[str, str]:
     return aliases
 
 
+def guess_region(store: str) -> str:
+    if "町田" in store:
+        return "町田"
+    if "中山" in store:
+        return "中山"
+    return "その他"
+
+
+def load_store_regions() -> dict[str, str]:
+    """正規店名 → 地域。未記載なら店名から推定。"""
+    regions: dict[str, str] = {}
+    if not STORES_FILE.exists():
+        return regions
+    current = ""
+    for line in STORES_FILE.read_text(encoding="utf-8").splitlines():
+        heading = re.match(r"^##\s+(.+)$", line.strip())
+        if heading:
+            current = heading.group(1).strip()
+            regions[current] = guess_region(current)
+            continue
+        if not current:
+            continue
+        region_line = re.match(r"^-\s*地域:\s*(.+)$", line.strip())
+        if region_line:
+            regions[current] = region_line.group(1).strip()
+    return regions
+
+
 def date_label(iso: str) -> str:
     match = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", iso)
     if not match:
@@ -988,19 +1016,58 @@ def build_date_page(day: str, store_cards: list[tuple[str, str, Path, str]]) -> 
     return dest
 
 
+def date_cards_sort_script() -> str:
+    return """
+<script>
+(() => {
+  const box = document.getElementById('date-cards');
+  const bar = document.getElementById('date-sort');
+  if (!box || !bar) return;
+  const cards = [...box.querySelectorAll('.card')];
+  cards.forEach((card, index) => { card.dataset.order = String(index); });
+  const apply = (mode) => {
+    bar.querySelectorAll('button').forEach((btn) => {
+      const on = btn.dataset.sort === mode;
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const sorted = [...cards].sort((a, b) => {
+      if (mode === 'region') {
+        const ar = a.dataset.region || 'その他';
+        const br = b.dataset.region || 'その他';
+        const cmp = ar.localeCompare(br, 'ja');
+        if (cmp !== 0) return cmp;
+      }
+      return Number(a.dataset.order) - Number(b.dataset.order);
+    });
+    sorted.forEach((card) => box.appendChild(card));
+  };
+  bar.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-sort]');
+    if (!btn) return;
+    apply(btn.dataset.sort);
+  });
+})();
+</script>
+"""
+
+
 def build_index(
     store_cards: list[tuple[str, str, str, Path, str]],
     guide_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
     spec_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
+    store_regions: dict[str, str] | None = None,
 ) -> None:
     """store_cards: (day, store, summary, store_page, when)"""
     dest = OUT / "index.html"
+    regions = store_regions or {}
 
     date_html = []
     for day, store, summary, page, when in store_cards:
+        region = regions.get(store) or guess_region(store)
         date_html.append(
-            f'<a class="card" data-find="{escape(day)} {escape(store)} {escape(summary)}" href="{href(dest, page)}">'
-            f'<span class="kicker">{escape(when)}</span><h3>{escape(store)}</h3>'
+            f'<a class="card" data-find="{escape(day)} {escape(store)} {escape(region)} {escape(summary)}" '
+            f'data-region="{escape(region)}" href="{href(dest, page)}">'
+            f'<span class="kicker">{escape(when)} · {escape(region)}</span><h3>{escape(store)}</h3>'
             f"<p>{escape(summary)}</p></a>"
         )
 
@@ -1034,9 +1101,15 @@ def build_index(
     body = f"""
 <h1>控え</h1>
 <p class="intro">日付から店舗、詳細へと進みます。攻略とスペックは店舗共通です。</p>
-<input class="search" id="q" type="search" placeholder="日付、店舗、機種名（なのは、鬼がかり）" autocomplete="off">
+<input class="search" id="q" type="search" placeholder="日付、店舗、地域、機種名（町田、中山、なのは）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
-<p class="section-label" id="dates">分析日</p>
+<div class="section-head" id="dates">
+  <p class="section-label">分析日</p>
+  <div class="sort-bar" id="date-sort" role="group" aria-label="分析日の並び">
+    <button type="button" data-sort="newest" aria-pressed="true">新しい順</button>
+    <button type="button" data-sort="region" aria-pressed="false">地域順</button>
+  </div>
+</div>
 <div class="doc-grid" id="date-cards">{''.join(date_html)}</div>
 <p class="section-label" id="guide">攻略情報</p>
 <div class="cards" id="guide-cards">{''.join(guide_html)}</div>
@@ -1044,6 +1117,7 @@ def build_index(
 <div class="cards" id="spec-cards">{''.join(spec_html)}</div>
 <p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
 {search_script([("dates", "date-cards"), ("guide", "guide-cards"), ("spec", "spec-cards")])}
+{date_cards_sort_script()}
 """
     page = shell(dest, "控え", "目次", body, wide=True)
     write(dest, page)
@@ -1246,7 +1320,7 @@ def main() -> None:
             (title_of(text, source.stem), blurb(text), spec_out[key], guide_out.get(key), units)
         )
 
-    build_index(index_store_cards, guide_cards, spec_cards)
+    build_index(index_store_cards, guide_cards, spec_cards, load_store_regions())
     (OUT / ".nojekyll").write_text("", encoding="utf-8")
     for path in sorted(OUT.rglob("*"), reverse=True):
         if path.is_dir() and not any(path.iterdir()):

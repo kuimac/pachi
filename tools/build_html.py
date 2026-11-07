@@ -111,24 +111,41 @@ def guess_region(store: str) -> str:
     return "その他"
 
 
-def load_store_regions() -> dict[str, str]:
-    """正規店名 → 地域。未記載なら店名から推定。"""
-    regions: dict[str, str] = {}
+def guess_station(store: str) -> str:
+    if "町田" in store:
+        return "町田駅"
+    if "中山" in store:
+        return "中山駅"
+    return "未設定"
+
+
+def load_store_field(label: str, fallback) -> dict[str, str]:
+    """店舗一覧の `- {label}:` を正規店名 → 値で読む。未記載は fallback(店名)。"""
+    values: dict[str, str] = {}
     if not STORES_FILE.exists():
-        return regions
+        return values
     current = ""
+    pattern = re.compile(rf"^-\s*{re.escape(label)}:\s*(.+)$")
     for line in STORES_FILE.read_text(encoding="utf-8").splitlines():
         heading = re.match(r"^##\s+(.+)$", line.strip())
         if heading:
             current = heading.group(1).strip()
-            regions[current] = guess_region(current)
+            values[current] = fallback(current)
             continue
         if not current:
             continue
-        region_line = re.match(r"^-\s*地域:\s*(.+)$", line.strip())
-        if region_line:
-            regions[current] = region_line.group(1).strip()
-    return regions
+        match = pattern.match(line.strip())
+        if match:
+            values[current] = match.group(1).strip()
+    return values
+
+
+def load_store_regions() -> dict[str, str]:
+    return load_store_field("地域", guess_region)
+
+
+def load_store_stations() -> dict[str, str]:
+    return load_store_field("最寄り駅", guess_station)
 
 
 def date_label(iso: str) -> str:
@@ -1025,16 +1042,19 @@ def date_cards_sort_script() -> str:
   if (!box || !bar) return;
   const cards = [...box.querySelectorAll('.card')];
   cards.forEach((card, index) => { card.dataset.order = String(index); });
+  const keyOf = (card, mode) => {
+    if (mode === 'region') return card.dataset.region || 'その他';
+    if (mode === 'station') return card.dataset.station || '未設定';
+    return '';
+  };
   const apply = (mode) => {
     bar.querySelectorAll('button').forEach((btn) => {
       const on = btn.dataset.sort === mode;
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     const sorted = [...cards].sort((a, b) => {
-      if (mode === 'region') {
-        const ar = a.dataset.region || 'その他';
-        const br = b.dataset.region || 'その他';
-        const cmp = ar.localeCompare(br, 'ja');
+      if (mode === 'region' || mode === 'station') {
+        const cmp = keyOf(a, mode).localeCompare(keyOf(b, mode), 'ja');
         if (cmp !== 0) return cmp;
       }
       return Number(a.dataset.order) - Number(b.dataset.order);
@@ -1056,18 +1076,22 @@ def build_index(
     guide_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
     spec_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
     store_regions: dict[str, str] | None = None,
+    store_stations: dict[str, str] | None = None,
 ) -> None:
     """store_cards: (day, store, summary, store_page, when)"""
     dest = OUT / "index.html"
     regions = store_regions or {}
+    stations = store_stations or {}
 
     date_html = []
     for day, store, summary, page, when in store_cards:
         region = regions.get(store) or guess_region(store)
+        station = stations.get(store) or guess_station(store)
         date_html.append(
-            f'<a class="card" data-find="{escape(day)} {escape(store)} {escape(region)} {escape(summary)}" '
-            f'data-region="{escape(region)}" href="{href(dest, page)}">'
-            f'<span class="kicker">{escape(when)} · {escape(region)}</span><h3>{escape(store)}</h3>'
+            f'<a class="card" data-find="{escape(day)} {escape(store)} {escape(region)} {escape(station)} {escape(summary)}" '
+            f'data-region="{escape(region)}" data-station="{escape(station)}" href="{href(dest, page)}">'
+            f'<span class="kicker">{escape(when)} · {escape(region)} · {escape(station)}</span>'
+            f"<h3>{escape(store)}</h3>"
             f"<p>{escape(summary)}</p></a>"
         )
 
@@ -1101,13 +1125,14 @@ def build_index(
     body = f"""
 <h1>控え</h1>
 <p class="intro">日付から店舗、詳細へと進みます。攻略とスペックは店舗共通です。</p>
-<input class="search" id="q" type="search" placeholder="日付、店舗、地域、機種名（町田、中山、なのは）" autocomplete="off">
+<input class="search" id="q" type="search" placeholder="日付、店舗、地域、駅、機種名（町田駅、中山、なのは）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
 <div class="section-head" id="dates">
   <p class="section-label">分析日</p>
   <div class="sort-bar" id="date-sort" role="group" aria-label="分析日の並び">
     <button type="button" data-sort="newest" aria-pressed="true">新しい順</button>
     <button type="button" data-sort="region" aria-pressed="false">地域順</button>
+    <button type="button" data-sort="station" aria-pressed="false">最寄り駅順</button>
   </div>
 </div>
 <div class="doc-grid" id="date-cards">{''.join(date_html)}</div>
@@ -1320,7 +1345,13 @@ def main() -> None:
             (title_of(text, source.stem), blurb(text), spec_out[key], guide_out.get(key), units)
         )
 
-    build_index(index_store_cards, guide_cards, spec_cards, load_store_regions())
+    build_index(
+        index_store_cards,
+        guide_cards,
+        spec_cards,
+        load_store_regions(),
+        load_store_stations(),
+    )
     (OUT / ".nojekyll").write_text("", encoding="utf-8")
     for path in sorted(OUT.rglob("*"), reverse=True):
         if path.is_dir() and not any(path.iterdir()):

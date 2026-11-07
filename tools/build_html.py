@@ -7,6 +7,7 @@ import csv
 import json
 import os
 import re
+import unicodedata
 from html import escape, unescape
 from pathlib import Path
 from urllib.parse import quote
@@ -322,6 +323,19 @@ def aliases_for(name: str) -> str:
         if key in name:
             words.extend(extra)
     return " ".join(dict.fromkeys(words))
+
+
+def machine_letter_kind(name: str) -> str:
+    """機種名の先頭で P / e / その他 に分ける（全角は NFKC）。"""
+    text = unicodedata.normalize("NFKC", name or "").lstrip()
+    if not text:
+        return "その他"
+    head = text[0]
+    if head in "Pp":
+        return "P"
+    if head in "Ee":
+        return "e"
+    return "その他"
 
 
 def section_kind(title: str) -> str:
@@ -1653,8 +1667,8 @@ def search_script(section_pairs: list[tuple[str, str]]) -> str:
 <script>
 const q = document.getElementById('q');
 const empty = document.getElementById('empty');
-if (q) q.addEventListener('input', () => {{
-  const query = q.value.trim().toLowerCase();
+const applyCatalogFilter = () => {{
+  const query = (q && q.value ? q.value : '').trim().toLowerCase();
   let shown = 0;
   document.querySelectorAll('.machine').forEach((sec) => {{
     const nameHit = !query || sec.dataset.find.toLowerCase().includes(query);
@@ -1668,7 +1682,12 @@ if (q) q.addEventListener('input', () => {{
     if (!sec.hidden) shown += 1;
   }});
   document.querySelectorAll('.doc-grid .card, .cards .card').forEach((card) => {{
-    const hit = !query || card.dataset.find.toLowerCase().includes(query);
+    const box = card.parentElement;
+    const kindFilter = (box && box.dataset.kindFilter) || 'all';
+    const kind = card.dataset.kind || '';
+    const kindOk = kindFilter === 'all' || !kind || kind === kindFilter;
+    const textOk = !query || (card.dataset.find || '').toLowerCase().includes(query);
+    const hit = kindOk && textOk;
     card.hidden = !hit;
     if (hit) shown += 1;
   }});
@@ -1679,10 +1698,40 @@ if (q) q.addEventListener('input', () => {{
     const box = document.getElementById(boxId);
     if (!label || !box) return;
     const any = [...box.children].some((el) => !el.hidden);
+    // 種類フィルタだけではバーを残す（すべてに戻せなくなるため）
     label.hidden = !!query && !any;
   }});
   if (empty) empty.hidden = shown !== 0;
-}});
+}};
+if (q) q.addEventListener('input', applyCatalogFilter);
+window.applyCatalogFilter = applyCatalogFilter;
+</script>
+"""
+
+
+def kind_filter_script() -> str:
+    return """
+<script>
+(() => {
+  const bind = (barId, boxId) => {
+    const bar = document.getElementById(barId);
+    const box = document.getElementById(boxId);
+    if (!bar || !box) return;
+    box.dataset.kindFilter = 'all';
+    bar.addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-kind]');
+      if (!btn) return;
+      const kind = btn.dataset.kind || 'all';
+      box.dataset.kindFilter = kind;
+      bar.querySelectorAll('button[data-kind]').forEach((el) => {
+        el.setAttribute('aria-pressed', el.dataset.kind === kind ? 'true' : 'false');
+      });
+      if (typeof window.applyCatalogFilter === 'function') window.applyCatalogFilter();
+    });
+  };
+  bind('guide-kind', 'guide-cards');
+  bind('spec-kind', 'spec-cards');
+})();
 </script>
 """
 
@@ -1843,6 +1892,13 @@ def build_index(
             f"<p>{escape(summary)}</p></a>"
         )
 
+    kind_bar = (
+        '<button type="button" data-kind="all" aria-pressed="true">すべて</button>'
+        '<button type="button" data-kind="P" aria-pressed="false">P</button>'
+        '<button type="button" data-kind="e" aria-pressed="false">e</button>'
+        '<button type="button" data-kind="その他" aria-pressed="false">その他</button>'
+    )
+
     guide_html = []
     for title, summary, page, spec, units in guide_cards:
         extra_bits = []
@@ -1851,10 +1907,12 @@ def build_index(
         if units:
             extra_bits.append(f"<span>台 {len(units)}</span>")
         extra = f'<div class="links">{"".join(extra_bits)}</div>' if extra_bits else ""
-        find = aliases_for(title) + " " + " ".join(num for num, _ in units)
+        kind = machine_letter_kind(title)
+        find = f"{aliases_for(title)} {kind} " + " ".join(num for num, _ in units)
         guide_html.append(
-            f'<div class="card" data-find="{escape(find)}">'
-            f'<a href="{href(dest, page)}"><span class="kicker">攻略</span><h3>{escape(title)}</h3>'
+            f'<div class="card" data-kind="{escape(kind)}" data-find="{escape(find)}">'
+            f'<a href="{href(dest, page)}"><span class="kicker">攻略 · {escape(kind)}</span>'
+            f"<h3>{escape(title)}</h3>"
             f"<p>{escape(summary)}</p></a>{extra}</div>"
         )
 
@@ -1863,8 +1921,9 @@ def build_index(
         extra = ""
         if guide:
             extra = f'<div class="links"><a href="{href(dest, guide)}">攻略</a></div>'
+        kind = machine_letter_kind(title)
         find = " ".join(
-            [aliases_for(title), *tags, *(num for num, _ in units)]
+            [aliases_for(title), kind, *tags, *(num for num, _ in units)]
         )
         tags_html = (
             '<div class="tags">'
@@ -1876,8 +1935,9 @@ def build_index(
             else ""
         )
         spec_html.append(
-            f'<div class="card" data-find="{escape(find)}">'
-            f'<a href="{href(dest, page)}"><span class="kicker">スペック</span><h3>{escape(title)}</h3>'
+            f'<div class="card" data-kind="{escape(kind)}" data-find="{escape(find)}">'
+            f'<a href="{href(dest, page)}"><span class="kicker">スペック · {escape(kind)}</span>'
+            f"<h3>{escape(title)}</h3>"
             f"<p>{escape(summary)}</p>{tags_html}</a>{extra}</div>"
         )
 
@@ -1916,13 +1976,24 @@ def build_index(
   </div>
 </div>
 <div class="doc-grid" id="date-cards">{''.join(date_html)}</div>
-<p class="section-label" id="guide">攻略情報</p>
+<div class="section-head" id="guide">
+  <p class="section-label">攻略情報</p>
+  <div class="sort-bar" id="guide-kind" role="group" aria-label="攻略情報の絞り込み">
+    {kind_bar}
+  </div>
+</div>
 <div class="cards" id="guide-cards">{''.join(guide_html)}</div>
-<p class="section-label" id="spec">機種スペック</p>
+<div class="section-head" id="spec">
+  <p class="section-label">機種スペック</p>
+  <div class="sort-bar" id="spec-kind" role="group" aria-label="機種スペックの絞り込み">
+    {kind_bar}
+  </div>
+</div>
 <div class="cards" id="spec-cards">{''.join(spec_html)}</div>
 <p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
 {search_script(search_pairs)}
 {date_cards_sort_script()}
+{kind_filter_script()}
 """
     page = shell(dest, "控え", "目次", body, wide=True)
     write(dest, page)

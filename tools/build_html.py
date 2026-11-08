@@ -297,22 +297,38 @@ def parse_lend_yen(value: str) -> float:
 
 
 def load_store_exchanges() -> list[dict[str, object]]:
-    """店舗一覧の交換玉と貸出単価。未記載は28玉・4円。"""
+    """店舗一覧の交換玉・換金単価・貸出単価。未記載は28玉・100/28円・4円。"""
     raw_exchange = load_store_field("交換", lambda _store: "28玉")
     raw_lend = load_store_field("貸出", lambda _store: "100円/25玉")
+    raw_cash = load_store_field("換金単価", lambda _store: "")
     stores: list[dict[str, object]] = []
     for name, value in raw_exchange.items():
         match = re.search(r"(\d+)\s*玉", value)
         balls = int(match.group(1)) if match else 28
+        table_balls = balls
         if balls not in (40, 33, 30, 28, 25):
-            # 表に無い玉数はいちばん近い列へ寄せる
-            balls = min((40, 33, 30, 28, 25), key=lambda n: abs(n - balls))
+            # 期待収支表に無い玉数はいちばん近い列へ寄せる
+            table_balls = min((40, 33, 30, 28, 25), key=lambda n: abs(n - balls))
         lend_raw = raw_lend.get(name, "100円/25玉")
         lend_yen = parse_lend_yen(lend_raw)
+        cash_raw = (raw_cash.get(name) or "").strip()
+        yen_override = None
+        cash_match = re.search(r"(\d+(?:\.\d+)?)\s*円", cash_raw)
+        if cash_match:
+            yen_override = float(cash_match.group(1))
+        # 換金ツール用。換金単価が無ければ 100÷交換玉数
+        yen_per_ball = (
+            yen_override
+            if yen_override is not None
+            else round(100 / balls, 4)
+        )
         stores.append(
             {
                 "name": name,
-                "balls": balls,
+                "balls": table_balls,
+                "exchange_balls": balls,
+                "yen_per_ball": yen_per_ball,
+                "yen_override": yen_override is not None,
                 "label": f"{balls}玉",
                 "lend": lend_yen,
                 "lend_label": lend_raw.strip(),
@@ -855,6 +871,258 @@ def rotation_calc_markup(compact: bool = False) -> str:
 """
 
 
+def cashout_markup(
+    stores: list[dict[str, object]] | None = None,
+    compact: bool = False,
+) -> str:
+    """持玉（弾数）→換金額。店舗選択で交換単価を自動入力。"""
+    stores = stores if stores is not None else load_store_exchanges()
+    stores_json = json.dumps(stores, ensure_ascii=False)
+    store_options = ['<option value="">店舗を選ぶ（任意）</option>']
+    for store in stores:
+        name = str(store["name"])
+        yen = store.get("yen_per_ball", round(100 / float(store.get("exchange_balls", store["balls"])), 4))
+        ex_balls = store.get("exchange_balls", store["balls"])
+        override = bool(store.get("yen_override"))
+        yen_txt = f"{yen:g}"
+        label = (
+            f"{escape(name)}（{yen_txt}円/発）"
+            if override
+            else f"{escape(name)}（交換{ex_balls}玉≈{yen_txt}円/発）"
+        )
+        store_options.append(
+            f'<option value="{escape(name)}" data-yen="{yen}" '
+            f'data-balls="{ex_balls}" data-override="{1 if override else 0}">'
+            f"{label}</option>"
+        )
+    note = (
+        '<p class="calc-note">換金額 = 弾数 × 円/発。'
+        "店舗を選ぶと単価が入る（あとから手で変えられる）。"
+        "楽園町田店はユーザー指定の <strong>3.75円/発</strong>。"
+        "他店は記載が無ければ <code>100÷交換玉数</code>。"
+        "投資額を入れると収支も出す。</p>"
+        if not compact
+        else '<p class="calc-note">店舗で単価自動。楽園町田は3.75円/発。投資額は任意。</p>'
+    )
+    return f"""
+<section class="calc" id="cashout-calc" aria-labelledby="cashout-title">
+  <div class="calc-head">
+    <h2 id="cashout-title">換金計算</h2>
+    <p class="calc-formula"><code>換金額 = 弾数 × 円/発</code></p>
+  </div>
+  <div class="calc-grid calc-grid-store">
+    <label class="calc-field">
+      <span>店舗（任意）</span>
+      <select id="cashout-store">{"".join(store_options)}</select>
+    </label>
+    <label class="calc-field">
+      <span>円/発</span>
+      <input id="cashout-yen" type="number" inputmode="decimal" step="0.01" min="0.01" value="3.75" placeholder="例 3.75" autocomplete="off">
+    </label>
+    <label class="calc-field">
+      <span>交換玉数（参考）</span>
+      <input id="cashout-exballs" type="text" value="—" readonly tabindex="-1" aria-live="polite">
+    </label>
+  </div>
+  <div class="calc-grid">
+    <label class="calc-field">
+      <span>弾数</span>
+      <input id="cashout-balls" type="number" inputmode="decimal" step="1" min="0" placeholder="例 7000" autocomplete="off">
+    </label>
+    <label class="calc-field">
+      <span>投資額（任意・円）</span>
+      <input id="cashout-invest" type="number" inputmode="decimal" step="100" min="0" placeholder="例 10000" autocomplete="off">
+    </label>
+    <div class="calc-field">
+      <span>クイック</span>
+      <div class="calc-row">
+        <button type="button" class="calc-btn" data-cashout-store="楽園町田店">楽園町田</button>
+        <button type="button" class="calc-btn" data-set-cashout-yen="3.75">3.75円</button>
+      </div>
+    </div>
+  </div>
+  <div class="calc-result" aria-live="polite">
+    <div class="stat">
+      <b id="cashout-total">—</b>
+      <span>換金額</span>
+    </div>
+    <div class="stat">
+      <b id="cashout-rate-view">—</b>
+      <span>適用単価</span>
+    </div>
+    <div class="stat">
+      <b id="cashout-net">—</b>
+      <span>収支（換金−投資）</span>
+    </div>
+  </div>
+  {note}
+</section>
+<script>
+(() => {{
+  const STORES = {stores_json};
+  const storeEl = document.getElementById('cashout-store');
+  const yenEl = document.getElementById('cashout-yen');
+  const exBallsEl = document.getElementById('cashout-exballs');
+  const ballsEl = document.getElementById('cashout-balls');
+  const investEl = document.getElementById('cashout-invest');
+  const totalEl = document.getElementById('cashout-total');
+  const rateView = document.getElementById('cashout-rate-view');
+  const netEl = document.getElementById('cashout-net');
+  if (!yenEl || !ballsEl || !totalEl) return;
+  const STORAGE_KEY = 'pachi-cashout';
+
+  const num = (el) => {{
+    if (!el) return null;
+    const v = el.value.trim();
+    if (v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }};
+
+  const fmtYen = (n) => {{
+    if (!Number.isFinite(n)) return '—';
+    return Math.round(n).toLocaleString('ja-JP') + '円';
+  }};
+  const fmtSignedYen = (n) => {{
+    if (!Number.isFinite(n)) return '—';
+    const rounded = Math.round(n);
+    const body = Math.abs(rounded).toLocaleString('ja-JP') + '円';
+    if (rounded > 0) return '+' + body;
+    if (rounded < 0) return '-' + body;
+    return body;
+  }};
+  const fmtRate = (n) => {{
+    if (!Number.isFinite(n)) return '—';
+    const t = n.toFixed(4).replace(/\\.?0+$/, '');
+    return t + '円/発';
+  }};
+
+  const setExBallsLabel = (balls, override) => {{
+    if (!exBallsEl) return;
+    if (balls == null) {{
+      exBallsEl.value = '—';
+      return;
+    }}
+    exBallsEl.value = override
+      ? `${{balls}}玉（単価指定あり）`
+      : `${{balls}}玉（100÷${{balls}}）`;
+  }};
+
+  const applyStore = (name) => {{
+    if (!storeEl || !name) return;
+    const exists = [...storeEl.options].some((o) => o.value === name);
+    if (!exists) return;
+    storeEl.value = name;
+    const opt = storeEl.selectedOptions[0];
+    if (!opt) return;
+    const yen = Number(opt.dataset.yen);
+    if (Number.isFinite(yen) && yen > 0) yenEl.value = String(yen);
+    const balls = Number(opt.dataset.balls);
+    setExBallsLabel(
+      Number.isFinite(balls) ? balls : null,
+      opt.dataset.override === '1'
+    );
+  }};
+
+  const persist = () => {{
+    try {{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({{
+        store: storeEl ? storeEl.value : '',
+        yen: yenEl.value,
+        balls: ballsEl.value,
+        invest: investEl ? investEl.value : ''
+      }}));
+    }} catch (_) {{}}
+  }};
+
+  const render = () => {{
+    const yen = num(yenEl);
+    const balls = num(ballsEl);
+    const invest = num(investEl);
+    if (rateView) rateView.textContent = fmtRate(yen);
+    if (yen == null || yen <= 0 || balls == null || balls < 0) {{
+      totalEl.textContent = '—';
+      netEl.textContent = '—';
+      totalEl.parentElement.classList.remove('good', 'bad');
+      netEl.parentElement.classList.remove('good', 'bad');
+      return;
+    }}
+    const total = balls * yen;
+    totalEl.textContent = fmtYen(total);
+    totalEl.parentElement.classList.add('good');
+    totalEl.parentElement.classList.remove('bad');
+    if (invest == null) {{
+      netEl.textContent = '—';
+      netEl.parentElement.classList.remove('good', 'bad');
+    }} else {{
+      const net = total - invest;
+      netEl.textContent = fmtSignedYen(net);
+      netEl.parentElement.classList.toggle('good', net > 0);
+      netEl.parentElement.classList.toggle('bad', net < 0);
+    }}
+  }};
+
+  if (storeEl) {{
+    storeEl.addEventListener('change', () => {{
+      const opt = storeEl.selectedOptions[0];
+      if (opt && opt.value) {{
+        const yen = Number(opt.dataset.yen);
+        if (Number.isFinite(yen) && yen > 0) yenEl.value = String(yen);
+        const balls = Number(opt.dataset.balls);
+        setExBallsLabel(
+          Number.isFinite(balls) ? balls : null,
+          opt.dataset.override === '1'
+        );
+      }} else {{
+        setExBallsLabel(null, false);
+      }}
+      persist();
+      render();
+    }});
+  }}
+  [yenEl, ballsEl, investEl].filter(Boolean).forEach((el) => {{
+    el.addEventListener('input', () => {{ persist(); render(); }});
+    el.addEventListener('change', () => {{ persist(); render(); }});
+  }});
+  document.querySelectorAll('[data-cashout-store]').forEach((btn) => {{
+    btn.addEventListener('click', () => {{
+      applyStore(btn.dataset.cashoutStore);
+      persist();
+      render();
+      if (ballsEl) ballsEl.focus();
+    }});
+  }});
+  document.querySelectorAll('[data-set-cashout-yen]').forEach((btn) => {{
+    btn.addEventListener('click', () => {{
+      yenEl.value = btn.dataset.setCashoutYen;
+      persist();
+      render();
+    }});
+  }});
+
+  try {{
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (saved && saved.store) applyStore(saved.store);
+    if (saved && saved.yen) yenEl.value = String(saved.yen);
+    if (saved && saved.balls) ballsEl.value = String(saved.balls);
+    if (saved && saved.invest != null && investEl) investEl.value = String(saved.invest);
+  }} catch (_) {{}}
+  if (storeEl && storeEl.value) {{
+    const opt = storeEl.selectedOptions[0];
+    if (opt) {{
+      const balls = Number(opt.dataset.balls);
+      setExBallsLabel(
+        Number.isFinite(balls) ? balls : null,
+        opt.dataset.override === '1'
+      );
+    }}
+  }}
+  render();
+}})();
+</script>
+"""
+
+
 def exchange_profit_markup(
     machines: list[dict[str, object]] | None = None,
     stores: list[dict[str, object]] | None = None,
@@ -871,9 +1139,11 @@ def exchange_profit_markup(
         balls = store["balls"]
         lend = store.get("lend", 4.0)
         lend_label = escape(str(store.get("lend_label", "100円/25玉")))
+        yen = store.get("yen_per_ball")
+        yen_attr = f' data-yen="{yen}"' if yen is not None else ""
         store_options.append(
             f'<option value="{escape(name)}" data-balls="{balls}" '
-            f'data-lend="{lend}" data-lend-label="{lend_label}">'
+            f'data-lend="{lend}" data-lend-label="{lend_label}"{yen_attr}>'
             f"{escape(name)}（交換{balls}玉・貸出{lend_label}）</option>"
         )
     note = (
@@ -1392,7 +1662,8 @@ def build_tools_page(
         crumb(dest, [("Top", OUT / "index.html", ""), ("計算ツール", None)]),
         f"""
 <h1>計算ツール</h1>
-<p class="intro">回転率の実測と、4パチ交換率ごとの期待収支を出します。店舗ごとの交換率と機種名検索が使えます。</p>
+<p class="intro">換金額・回転率の実測・4パチ交換率ごとの期待収支を出します。店舗ごとの単価と機種名検索が使えます。</p>
+{cashout_markup(stores, compact=False)}
 {rotation_calc_markup(compact=False)}
 {exchange_profit_markup(machines, stores, compact=False)}
 """,
@@ -2373,6 +2644,7 @@ def build_index(
     stores = load_store_exchanges()
     tools_block = (
         '<p class="section-label" id="tools">ツール</p>'
+        f'{cashout_markup(stores, compact=True)}'
         f'{rotation_calc_markup(compact=True)}'
         f'{exchange_profit_markup(machines, stores, compact=True)}'
         f'<p class="calc-more"><a href="{href(dest, tool_page)}">計算ツールを開く</a></p>'

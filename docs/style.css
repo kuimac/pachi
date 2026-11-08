@@ -160,6 +160,26 @@ h3 { font-size: 1.02rem; margin: 0 0 8px; }
   border-radius: 8px;
 }
 .panel-fig + .panel-fig { margin-top: 8px; }
+.panel-fig figcaption {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+.floor-map-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0 8px;
+}
+.floor-map-grid .panel-fig {
+  margin: 0;
+}
+@media (max-width: 800px) {
+  .floor-map-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 p { margin: 0.55em 0; }
 ul, ol { margin: 0.4em 0 0.8em; padding-left: 1.3em; }

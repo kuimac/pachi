@@ -176,6 +176,34 @@ def load_store_profile(store: str) -> dict[str, str]:
     return profile
 
 
+def store_floor_map_dir(store: str) -> Path:
+    """店舗画像/<店名>/ に置いたフロアマップ画像の元フォルダ。"""
+    return ROOT / "店舗画像" / store
+
+
+def store_floor_map_files(store: str) -> list[Path]:
+    """表示用フロアマップ画像（jpg/png/webp）。ファイル名順。"""
+    folder = store_floor_map_dir(store)
+    if not folder.is_dir():
+        return []
+    files: list[Path] = []
+    for path in sorted(folder.iterdir()):
+        if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}:
+            files.append(path)
+    return files
+
+
+def floor_map_label(path: Path) -> str:
+    """フロアマップ-1F.jpg → 1F などの短い見出し。"""
+    stem = path.stem
+    for prefix in ("フロアマップ-", "フロアマップ_", "floor-map-", "floormap-"):
+        if stem.startswith(prefix):
+            return stem[len(prefix) :]
+    if stem.startswith("フロアマップ"):
+        return stem.replace("フロアマップ", "", 1).lstrip("-_ ") or stem
+    return stem
+
+
 def store_info_html(store: str, from_file: Path, stores_page: Path | None = None) -> str:
     """店舗ページ用の基本情報ブロック。"""
     profile = load_store_profile(store)
@@ -215,10 +243,42 @@ def store_info_html(store: str, from_file: Path, stores_page: Path | None = None
             f'<p class="calc-note"><a href="{href(from_file, stores_page)}">'
             "店舗一覧（別名・レート注記）</a></p>"
         )
+    map_html = ""
+    map_files = store_floor_map_files(store)
+    map_link = profile.get("フロアマップ", "").strip()
+    if map_files or map_link:
+        figs = []
+        for path in map_files:
+            dest_img = OUT / "店舗" / store / path.name
+            rel = href(from_file, dest_img)
+            label = floor_map_label(path)
+            figs.append(
+                '<figure class="panel-fig floor-map">'
+                f"<figcaption>{escape(label)}</figcaption>"
+                f'<a href="{escape(rel, quote=True)}">'
+                f'<img src="{escape(rel, quote=True)}" alt="{escape(store)} フロアマップ {escape(label)}" loading="lazy">'
+                "</a></figure>"
+            )
+        link_note = ""
+        if map_link.startswith("http"):
+            link_note = (
+                f'<p class="calc-note"><a href="{escape(map_link, quote=True)}" '
+                'rel="noopener" target="_blank">P-WORLD スマフロ（拡大・台検索）</a></p>'
+            )
+        updated = profile.get("フロアマップ更新日", "").strip()
+        updated_note = (
+            f'<p class="calc-note">フロアマップ更新日: {escape(updated)}</p>' if updated else ""
+        )
+        map_html = (
+            '<div class="floor-map-grid">'
+            f'{"".join(figs)}'
+            "</div>"
+            f"{updated_note}{link_note}"
+        )
     return (
         '<section class="block spec"><h2>店舗情報</h2>'
         f'<div class="table-wrap"><table>{"".join(rows)}</table></div>'
-        f"{more}</section>"
+        f"{map_html}{more}</section>"
     )
 
 
@@ -2674,6 +2734,25 @@ def main() -> None:
         if dest_images.exists():
             shutil.rmtree(dest_images)
         shutil.copytree(spec_images, dest_images)
+
+    # 店舗フロアマップなど、店舗画像/<店名>/ を docs/店舗/<店名>/ へコピーする。
+    store_images_root = ROOT / "店舗画像"
+    if store_images_root.is_dir():
+        for store_dir in sorted(store_images_root.iterdir()):
+            if not store_dir.is_dir():
+                continue
+            dest_dir = OUT / "店舗" / store_dir.name
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            for path in store_dir.iterdir():
+                if path.is_file() and path.suffix.lower() in {
+                    ".jpg",
+                    ".jpeg",
+                    ".png",
+                    ".webp",
+                    ".svg",
+                    ".gif",
+                }:
+                    shutil.copy2(path, dest_dir / path.name)
 
     (OUT / ".nojekyll").write_text("", encoding="utf-8")
     for path in sorted(OUT.rglob("*"), reverse=True):

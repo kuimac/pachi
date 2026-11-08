@@ -11,7 +11,11 @@ if [[ -z "$MSG" ]]; then
   exit 2
 fi
 
-python3 tools/build_html.py
+if [[ -x "$ROOT/.venv/bin/python" ]]; then
+  "$ROOT/.venv/bin/python" tools/build_html.py
+else
+  python3 tools/build_html.py
+fi
 
 if git diff --quiet && git diff --cached --quiet && [[ -z "$(git ls-files --others --exclude-standard)" ]]; then
   echo "no changes to publish"

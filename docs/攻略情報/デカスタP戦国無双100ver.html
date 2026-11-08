@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>デカスタP戦国無双100ver</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body class="">
+<header class="top">
+  <a class="brand" href="../index.html">wop</a>
+  <nav><a href="../index.html">Top</a><a href="../index.html#tools">ツール</a><a href="../index.html#stores">店舗</a><a href="../index.html#dates">日付</a><a href="../index.html#guide">攻略</a><a href="../index.html#spec">スペック</a></nav>
+</header>
+<main>
+  <p class="crumb"><a href="../index.html">Top</a> / <a href="../index.html#guide">攻略情報</a></p>
+  <h1>デカスタP戦国無双100ver</h1><nav class="toc"><a href="#s1">スペック</a><a href="#s2">ボーダー</a><a href="#s3">狙い目</a><a href="#s4">やめ時</a><a href="#s5">朝イチ</a><a href="#s6">注意</a></nav><div class="lede"><p>ニューギン。2024年頃導入。遊タイムはない。</p>
+</div>
+<section class="block spec"><h2 id="s1">スペック</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>項目</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>大当り確率</td>
+<td>通常 約1/99.9前後</td>
+</tr>
+<tr>
+<td>RUSH</td>
+<td>突入・継続は公開解析の概数</td>
+</tr>
+<tr>
+<td>賞球</td>
+<td>公開値の幅あり</td>
+</tr>
+<tr>
+<td>出玉</td>
+<td>甘デジ帯の払い出し（現地確認）</td>
+</tr>
+</tbody>
+</table></div>
+<p>デカヘソでスタートは出やすい。ボーダーは回転率で実測。</p>
+<p>戦国無双100verのデカスタ。遊タイムは非確認・現地確認。</p>
+</section>
+<section class="block border"><h2 id="s2">ボーダー</h2>
+<p>現金・削りなし。1000円あたり。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>交換</th>
+<th>ボーダー</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4.00円（等価）</td>
+<td class="num">17.0</td>
+</tr>
+<tr>
+<td>3.57円（28玉）</td>
+<td class="num">18.5</td>
+</tr>
+<tr>
+<td>3.33円（30玉）</td>
+<td class="num">19.5</td>
+</tr>
+<tr>
+<td>3.03円（33玉）</td>
+<td class="num">21.0</td>
+</tr>
+</tbody>
+</table></div>
+<p>持玉で回している間は等価側に寄る。朝イチの現金区間は28玉側で見る。</p>
+</section>
+<section class="block target"><h2 id="s3">狙い目</h2>
+<p>18.5回転以上。遊タイムはないのでハマりでは狙わない。通常時の回転率だけを見る。</p>
+</section>
+<section class="block stop"><h2 id="s4">やめ時</h2>
+<p>電サポ・RUSHが終わって通常に戻ったとき。回転率が18.5未満なら即やめ。以上なら続けてよい。</p>
+</section>
+<section class="block morning"><h2 id="s5">朝イチ</h2>
+<p>閉店スタートは使わない。1000円を通常時だけで数え、18.5回転に届かなければやめる。電サポ中の回転は測定に入れない。</p>
+</section>
+<section class="block caution"><h2 id="s6">注意</h2>
+<p>コンプリート機能あり。公開値の幅あり・現地確認。</p></section><div class="related"><a href="../%E6%A9%9F%E7%A8%AE%E3%82%B9%E3%83%9A%E3%83%83%E3%82%AF/%E3%83%87%E3%82%AB%E3%82%B9%E3%82%BFP%E6%88%A6%E5%9B%BD%E7%84%A1%E5%8F%8C100ver.html">スペック</a></div><p class="foot">元ファイル <code>攻略情報/デカスタP戦国無双100ver.md</code></p>
+</main>
+
+<script>
+(() => {
+  const parse = (text) => {
+    const raw = (text || '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw === '—' || raw === '-' || raw === '－') return { n: null, s: '' };
+    const cleaned = raw
+      .replace(/,/g, '')
+      .replace(/[＋]/g, '+')
+      .replace(/[−－]/g, '-')
+      .replace(/円(\/千円|\/朝)?$/u, '')
+      .replace(/%$/u, '')
+      .replace(/個$/u, '')
+      .replace(/回$/u, '')
+      .replace(/G$/iu, '');
+    if (/^[+-]?\d+(\.\d+)?$/.test(cleaned)) return { n: Number(cleaned), s: raw };
+    return { n: null, s: raw.toLowerCase() };
+  };
+  const cellText = (td) => (td ? td.innerText || td.textContent || '' : '');
+  document.querySelectorAll('table').forEach((table) => {
+    const headRow = table.tHead && table.tHead.rows[0];
+    const body = table.tBodies[0];
+    if (!headRow || !body || body.rows.length < 2) return;
+    table.classList.add('sortable');
+    [...headRow.cells].forEach((th, col) => {
+      if (th.colSpan > 1) return;
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      th.setAttribute('aria-sort', 'none');
+      const activate = () => {
+        const asc = th.dataset.sort !== 'asc';
+        [...headRow.cells].forEach((cell) => {
+          delete cell.dataset.sort;
+          cell.setAttribute('aria-sort', 'none');
+        });
+        th.dataset.sort = asc ? 'asc' : 'desc';
+        th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+        const rows = [...body.rows].map((row, index) => {
+          const value = parse(cellText(row.cells[col]));
+          return { row, index, value };
+        });
+        rows.sort((a, b) => {
+          const an = a.value.n;
+          const bn = b.value.n;
+          let cmp = 0;
+          if (an != null && bn != null) cmp = an - bn;
+          else if (an != null) cmp = -1;
+          else if (bn != null) cmp = 1;
+          else cmp = a.value.s.localeCompare(b.value.s, 'ja');
+          if (cmp === 0) cmp = a.index - b.index;
+          return asc ? cmp : -cmp;
+        });
+        rows.forEach(({ row }) => body.appendChild(row));
+      };
+      th.addEventListener('click', activate);
+      th.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

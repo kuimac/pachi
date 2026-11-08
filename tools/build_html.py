@@ -113,6 +113,8 @@ def guess_region(store: str) -> str:
         return "町田"
     if "中山" in store:
         return "中山"
+    if "池袋" in store:
+        return "池袋"
     return "その他"
 
 
@@ -121,6 +123,8 @@ def guess_station(store: str) -> str:
         return "町田駅"
     if "中山" in store:
         return "中山駅"
+    if "池袋" in store:
+        return "池袋駅"
     return "未設定"
 
 
@@ -1360,6 +1364,11 @@ def build_tools_page(
 def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False) -> str:
     items = [
         ("Top", OUT / "index.html", ""),
+        ("ツール", OUT / "index.html", "#tools"),
+        ("店舗", OUT / "index.html", "#stores"),
+        ("日付", OUT / "index.html", "#dates"),
+        ("攻略", OUT / "index.html", "#guide"),
+        ("スペック", OUT / "index.html", "#spec"),
     ]
     nav = "".join(
         f'<a href="{href(from_file, path, anchor)}">{label}</a>'

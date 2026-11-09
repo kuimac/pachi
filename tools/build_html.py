@@ -254,11 +254,152 @@ def play_tag_html(last_date: str) -> str:
     )
 
 
+
 def fmt_signed_yen(value: int | None) -> str:
     if value is None:
         return "—"
     sign = "+" if value > 0 else ""
     return f"{sign}{value:,}円"
+
+
+def play_result_rows() -> list[dict[str, object]]:
+    return [row for row in load_play_records() if row.get("profit") is not None]
+
+
+def play_totals(rows: list[dict[str, object]] | None = None) -> dict[str, int]:
+    rows = rows if rows is not None else play_result_rows()
+    invest = sum(v for row in rows if isinstance((v := row.get("invest")), int))
+    cashout = sum(v for row in rows if isinstance((v := row.get("cashout")), int))
+    profit = sum(v for row in rows if isinstance((v := row.get("profit")), int))
+    wins = sum(1 for row in rows if isinstance((v := row.get("profit")), int) and v > 0)
+    losses = sum(1 for row in rows if isinstance((v := row.get("profit")), int) and v < 0)
+    even = sum(1 for row in rows if isinstance((v := row.get("profit")), int) and v == 0)
+    return {
+        "count": len(rows),
+        "invest": invest,
+        "cashout": cashout,
+        "profit": profit,
+        "wins": wins,
+        "losses": losses,
+        "even": even,
+    }
+
+
+def play_totals_html(totals: dict[str, int]) -> str:
+    profit = totals["profit"]
+    cls = " win" if profit > 0 else " lose" if profit < 0 else ""
+    return (
+        f'<div class="stats play-totals{cls}">'
+        f'<div class="stat"><span>累計収支</span><b class="play-profit">{escape(fmt_signed_yen(profit))}</b></div>'
+        f'<div class="stat"><span>累計投資</span><b>{totals["invest"]:,}円</b></div>'
+        f'<div class="stat"><span>累計換金</span><b>{totals["cashout"]:,}円</b></div>'
+        f'<div class="stat"><span>件数</span><b>{totals["count"]}回'
+        f'（勝{totals["wins"]} / 負{totals["losses"]}）</b></div>'
+        f"</div>"
+    )
+
+
+def play_result_card_html(dest: Path, row: dict[str, object]) -> str:
+    profit = row.get("profit")
+    assert isinstance(profit, int)
+    cls = " win" if profit > 0 else " lose" if profit < 0 else ""
+    day = str(row["date"])
+    store = str(row["store"])
+    number = str(row["number"])
+    machine = str(row.get("machine") or "")
+    note = str(row.get("note") or "")
+    invest = row.get("invest")
+    balls = row.get("balls")
+    cashout = row.get("cashout")
+    detail_bits = []
+    if isinstance(invest, int):
+        detail_bits.append(f"投資 {invest:,}円")
+    if isinstance(balls, int):
+        detail_bits.append(f"出玉 {balls:,}発")
+    if isinstance(cashout, int):
+        detail_bits.append(f"換金 {cashout:,}円")
+    detail = " · ".join(detail_bits)
+    find = f"{day} {store} {number} {machine} {note} {fmt_signed_yen(profit)}"
+    store_page = OUT / "店舗" / store / "index.html"
+    unit_page = None
+    if machine and (ROOT / store / machine / number).is_dir():
+        unit_page = OUT / store / site_name(machine) / number / "index.html"
+    href_target = unit_page if unit_page else store_page
+    note_html = f"<p>{escape(note)}</p>" if note else ""
+    return (
+        f'<a class="card play-result{cls}" data-find="{escape(find)}" '
+        f'href="{href(dest, href_target)}">'
+        f'<span class="kicker">{escape(date_label(day))} · {escape(store)}</span>'
+        f"<h3>{escape(number)} {escape(machine)}</h3>"
+        f'<p class="play-profit">{escape(fmt_signed_yen(profit))}</p>'
+        f"<p>{escape(detail)}</p>"
+        f"{note_html}</a>"
+    )
+
+
+def play_day_totals(rows: list[dict[str, object]]) -> list[tuple[str, dict[str, int]]]:
+    by_day: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        by_day.setdefault(str(row["date"]), []).append(row)
+    return [(day, play_totals(items)) for day, items in sorted(by_day.items(), reverse=True)]
+
+
+def build_plays_page() -> Path:
+    dest = OUT / "プレイ結果" / "index.html"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    rows = play_result_rows()
+    totals = play_totals(rows)
+    cards = "".join(play_result_card_html(dest, row) for row in rows)
+    day_rows = []
+    for day, day_total in play_day_totals(rows):
+        cls = "pos" if day_total["profit"] > 0 else "neg" if day_total["profit"] < 0 else ""
+        day_rows.append(
+            "<tr>"
+            f"<td>{escape(date_label(day))}</td>"
+            f"<td>{day_total['count']}</td>"
+            f"<td>{day_total['invest']:,}</td>"
+            f"<td>{day_total['cashout']:,}</td>"
+            f'<td class="{cls}">{escape(fmt_signed_yen(day_total["profit"]))}</td>'
+            "</tr>"
+        )
+    day_table = ""
+    if day_rows:
+        day_table = (
+            '<p class="section-label">日別収支</p>'
+            '<div class="table-wrap"><table class="data play-day-table">'
+            "<thead><tr><th>日付</th><th>件数</th><th>投資</th><th>換金</th><th>収支</th></tr></thead>"
+            f"<tbody>{''.join(day_rows)}</tbody></table></div>"
+        )
+    if cards:
+        list_block = (
+            '<p class="section-label">明細</p>'
+            f'<div class="doc-grid" id="play-cards">{cards}</div>'
+        )
+    else:
+        list_block = (
+            '<p class="intro">収支が入ったプレイはまだありません。'
+            '<code>プレイ履歴.md</code> に追記するとここに出ます。</p>'
+        )
+    body = f"""
+<h1>プレイ結果</h1>
+<p class="intro">自分が打った台の収支一覧と累計です。元データは <code>プレイ履歴.md</code>。</p>
+{play_totals_html(totals)}
+{day_table}
+{list_block}
+<input class="search" id="q" type="search" placeholder="日付、店舗、台番号、機種名" autocomplete="off">
+<p id="empty" class="empty" hidden>一致する結果がありません。</p>
+<p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
+{search_script([("plays", "play-cards")]) if cards else ""}
+"""
+    page = shell(
+        dest,
+        "プレイ結果",
+        crumb(dest, [("Top", OUT / "index.html", ""), ("プレイ結果", None)]),
+        body,
+        wide=True,
+    )
+    write(dest, page)
+    return dest
 
 
 def latest_measure(folder: Path) -> dict[str, str] | None:
@@ -663,6 +804,9 @@ def store_info_html(store: str, from_file: Path, stores_page: Path | None = None
         "イベント日公開日",
         "日次集計リセット",
         "台スタートリセット",
+        "データ更新目安",
+        "無料取得範囲",
+        "右打ち持ち越し",
         "店舗URL",
         "分析URL",
     ]
@@ -2147,7 +2291,7 @@ def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False
         ("ツール", OUT / "index.html", "#tools"),
         ("店舗", OUT / "index.html", "#stores"),
         ("日付", OUT / "index.html", "#dates"),
-        ("結果", OUT / "index.html", "#plays"),
+        ("結果", OUT / "プレイ結果" / "index.html", ""),
         ("攻略", OUT / "index.html", "#guide"),
         ("スペック", OUT / "index.html", "#spec"),
     ]
@@ -3111,59 +3255,33 @@ def build_index(
             f"<p>{escape(summary)}</p>{tags_html}</a>{extra}</div>"
         )
 
-    result_rows = [row for row in load_play_records() if row.get("profit") is not None]
-    play_html = []
-    for row in result_rows:
-        profit = row.get("profit")
-        assert isinstance(profit, int)
-        cls = " win" if profit > 0 else " lose" if profit < 0 else ""
-        day = str(row["date"])
-        store = str(row["store"])
-        number = str(row["number"])
-        machine = str(row.get("machine") or "")
-        note = str(row.get("note") or "")
-        invest = row.get("invest")
-        balls = row.get("balls")
-        cashout = row.get("cashout")
-        detail_bits = []
-        if isinstance(invest, int):
-            detail_bits.append(f"投資 {invest:,}円")
-        if isinstance(balls, int):
-            detail_bits.append(f"出玉 {balls:,}発")
-        if isinstance(cashout, int):
-            detail_bits.append(f"換金 {cashout:,}円")
-        detail = " · ".join(detail_bits)
-        find = f"{day} {store} {number} {machine} {note} {fmt_signed_yen(profit)}"
-        store_page = OUT / "店舗" / store / "index.html"
-        unit_page = None
-        if machine and (ROOT / store / machine / number).is_dir():
-            unit_page = OUT / store / site_name(machine) / number / "index.html"
-        href_target = unit_page if unit_page else store_page
-        play_html.append(
-            f'<a class="card play-result{cls}" data-find="{escape(find)}" '
-            f'href="{href(dest, href_target)}">'
-            f'<span class="kicker">{escape(date_label(day))} · {escape(store)}</span>'
-            f"<h3>{escape(number)} {escape(machine)}</h3>"
-            f'<p class="play-profit">{escape(fmt_signed_yen(profit))}</p>'
-            f"<p>{escape(detail)}</p>"
-            f"{f'<p>{escape(note)}</p>' if note else ''}</a>"
-        )
+    result_rows = play_result_rows()
+    play_page = OUT / "プレイ結果" / "index.html"
+    totals = play_totals(result_rows)
+    play_html = [play_result_card_html(dest, row) for row in result_rows[:6]]
     plays_block = ""
-    if play_html:
-        plays_block = (
-            '<div class="section-head" id="plays">'
-            '<p class="section-label">プレイ結果</p>'
-            "</div>"
-            f'<div class="doc-grid" id="play-cards">{"".join(play_html)}</div>'
+    if play_html or load_play_records():
+        more = (
+            f'<p class="related"><a href="{href(dest, play_page)}">プレイ結果一覧・累計収支を見る</a></p>'
         )
-    elif load_play_records():
-        plays_block = (
-            '<div class="section-head" id="plays">'
-            '<p class="section-label">プレイ結果</p>'
-            "</div>"
-            '<p class="intro">打った台の記録はあるが、収支が入っている行はまだありません。'
-            '<code>プレイ履歴.md</code> に収支を追記するとここに出ます。</p>'
-        )
+        if play_html:
+            plays_block = (
+                '<div class="section-head" id="plays">'
+                '<p class="section-label">プレイ結果</p>'
+                "</div>"
+                f"{play_totals_html(totals)}"
+                f'<div class="doc-grid" id="play-cards">{"".join(play_html)}</div>'
+                f"{more}"
+            )
+        else:
+            plays_block = (
+                '<div class="section-head" id="plays">'
+                '<p class="section-label">プレイ結果</p>'
+                "</div>"
+                '<p class="intro">打った台の記録はあるが、収支が入っている行はまだありません。'
+                '<code>プレイ履歴.md</code> に収支を追記するとここに出ます。</p>'
+                f"{more}"
+            )
 
     explain_block = ""
     search_pairs = [
@@ -3210,7 +3328,7 @@ def build_index(
         *( [("解説", "#explain")] if explain_html else [] ),
         *( [("店舗", "#stores")] if store_html else [] ),
         ("分析日", "#dates"),
-        *( [("プレイ結果", "#plays")] if plays_block else [] ),
+        *( [("プレイ結果", href(dest, play_page))] if plays_block else [] ),
         ("攻略情報", "#guide"),
         ("機種スペック", "#spec"),
     ]
@@ -3528,6 +3646,7 @@ def main() -> None:
     machines = load_machine_borders()
     stores = load_store_exchanges()
     build_tools_page(machines, stores)
+    build_plays_page()
 
     regions = load_store_regions()
     stations = load_store_stations()

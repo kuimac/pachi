@@ -385,15 +385,22 @@ table.dense td:last-child {
   background: #f8f0e4;
   font-weight: 600;
 }
-.play-result .play-profit {
+.play-result .play-profit,
+.play-totals .play-profit {
   margin: 4px 0 2px;
   font-size: 1.05rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
-.play-result.win .play-profit { color: #1b6b43; }
-.play-result.lose .play-profit { color: #a3262c; }
+.play-result.win .play-profit,
+.play-totals.win .play-profit { color: #1b6b43; }
+.play-result.lose .play-profit,
+.play-totals.lose .play-profit { color: #a3262c; }
+.play-day-table td:nth-child(n+2) {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 
 .stats {
   display: grid;

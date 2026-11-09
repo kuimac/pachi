@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>プレイ結果</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body class="wide">
+<header class="top">
+  <a class="brand" href="../index.html">wop</a>
+  <nav><a href="../index.html">Top</a><a href="../index.html#tools">ツール</a><a href="../index.html#stores">店舗</a><a href="../index.html#dates">日付</a><a href="index.html">結果</a><a href="../index.html#guide">攻略</a><a href="../index.html#spec">スペック</a></nav>
+</header>
+<main>
+  <p class="crumb"><a href="../index.html">Top</a> / プレイ結果</p>
+  
+<h1>プレイ結果</h1>
+<p class="intro">自分が打った台の収支一覧と累計です。元データは <code>プレイ履歴.md</code>。</p>
+<div class="stats play-totals win"><div class="stat"><span>累計収支</span><b class="play-profit">—</b></div><div class="stat"><span>累計投資</span><b>—</b></div><div class="stat"><span>累計換金</span><b>—</b></div><div class="stat"><span>件数</span><b>1回（勝1 / 負0）</b></div></div>
+<p class="section-label">日別収支</p><div class="table-wrap"><table class="data play-day-table"><thead><tr><th>日付</th><th>件数</th><th>投資</th><th>換金</th><th>収支</th></tr></thead><tbody><tr><td>11月8日</td><td>1</td><td>20,500</td><td>93,000</td><td class="pos">—</td></tr></tbody></table></div>
+<p class="section-label">明細</p><div class="doc-grid" id="play-cards"><a class="card play-result win" data-find="2026-11-08 楽園町田店 1265 e Re：ゼロから始める異世界生活 鬼がかり2 朝（換金3.75円換算） —" href="../%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/e%20Re%EF%BC%9A%E3%82%BC%E3%83%AD%E3%81%8B%E3%82%89%E5%A7%8B%E3%82%81%E3%82%8B%E7%95%B0%E4%B8%96%E7%95%8C%E7%94%9F%E6%B4%BB%20%E9%AC%BC%E3%81%8C%E3%81%8B%E3%82%8A2/1265/index.html"><span class="kicker">11月8日 · 楽園町田店</span><h3>1265 e Re：ゼロから始める異世界生活 鬼がかり2</h3><p class="play-profit">—</p><p>投資 — · 出玉 24,800発 · 換金 —</p><p>朝（換金3.75円換算）</p></a></div>
+<input class="search" id="q" type="search" placeholder="日付、店舗、台番号、機種名" autocomplete="off">
+<p id="empty" class="empty" hidden>一致する結果がありません。</p>
+<p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
+
+<script>
+const q = document.getElementById('q');
+const empty = document.getElementById('empty');
+const applyCatalogFilter = () => {
+  const query = (q && q.value ? q.value : '').trim().toLowerCase();
+  let shown = 0;
+  document.querySelectorAll('.machine').forEach((sec) => {
+    const nameHit = !query || sec.dataset.find.toLowerCase().includes(query);
+    let any = false;
+    sec.querySelectorAll('.unit').forEach((unit) => {
+      const hit = nameHit || unit.dataset.find.toLowerCase().includes(query);
+      unit.hidden = !!query && !hit;
+      if (!unit.hidden) any = true;
+    });
+    sec.hidden = !!query && !any;
+    if (!sec.hidden) shown += 1;
+  });
+  document.querySelectorAll('.doc-grid .card, .cards .card').forEach((card) => {
+    const box = card.parentElement;
+    const kindFilter = (box && box.dataset.kindFilter) || 'all';
+    const kind = card.dataset.kind || '';
+    const kindOk = kindFilter === 'all' || !kind || kind === kindFilter;
+    const textOk = !query || (card.dataset.find || '').toLowerCase().includes(query);
+    const hit = kindOk && textOk;
+    card.hidden = !hit;
+    if (hit) shown += 1;
+  });
+  [
+    ['plays', 'play-cards']
+  ].forEach(([labelId, boxId]) => {
+    const label = document.getElementById(labelId);
+    const box = document.getElementById(boxId);
+    if (!label || !box) return;
+    const any = [...box.children].some((el) => !el.hidden);
+    // 種類フィルタだけではバーを残す（すべてに戻せなくなるため）
+    label.hidden = !!query && !any;
+  });
+  if (empty) empty.hidden = shown !== 0;
+};
+if (q) q.addEventListener('input', applyCatalogFilter);
+window.applyCatalogFilter = applyCatalogFilter;
+</script>
+
+
+</main>
+
+<script>
+(() => {
+  const parse = (text) => {
+    const raw = (text || '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw === '—' || raw === '-' || raw === '－') return { n: null, s: '' };
+    const cleaned = raw
+      .replace(/,/g, '')
+      .replace(/[＋]/g, '+')
+      .replace(/[−－]/g, '-')
+      .replace(/円(\/千円|\/朝)?$/u, '')
+      .replace(/%$/u, '')
+      .replace(/個$/u, '')
+      .replace(/回$/u, '')
+      .replace(/G$/iu, '');
+    if (/^[+-]?\d+(\.\d+)?$/.test(cleaned)) return { n: Number(cleaned), s: raw };
+    return { n: null, s: raw.toLowerCase() };
+  };
+  const cellText = (td) => (td ? td.innerText || td.textContent || '' : '');
+  document.querySelectorAll('table').forEach((table) => {
+    const headRow = table.tHead && table.tHead.rows[0];
+    const body = table.tBodies[0];
+    if (!headRow || !body || body.rows.length < 2) return;
+    table.classList.add('sortable');
+    [...headRow.cells].forEach((th, col) => {
+      if (th.colSpan > 1) return;
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      th.setAttribute('aria-sort', 'none');
+      const activate = () => {
+        const asc = th.dataset.sort !== 'asc';
+        [...headRow.cells].forEach((cell) => {
+          delete cell.dataset.sort;
+          cell.setAttribute('aria-sort', 'none');
+        });
+        th.dataset.sort = asc ? 'asc' : 'desc';
+        th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+        const rows = [...body.rows].map((row, index) => {
+          const value = parse(cellText(row.cells[col]));
+          return { row, index, value };
+        });
+        rows.sort((a, b) => {
+          const an = a.value.n;
+          const bn = b.value.n;
+          let cmp = 0;
+          if (an != null && bn != null) cmp = an - bn;
+          else if (an != null) cmp = -1;
+          else if (bn != null) cmp = 1;
+          else cmp = a.value.s.localeCompare(b.value.s, 'ja');
+          if (cmp === 0) cmp = a.index - b.index;
+          return asc ? cmp : -cmp;
+        });
+        rows.forEach(({ row }) => body.appendChild(row));
+      };
+      th.addEventListener('click', activate);
+      th.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

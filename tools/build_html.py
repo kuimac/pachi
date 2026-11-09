@@ -101,8 +101,7 @@ def measure_display_text(row: dict[str, str] | None) -> str:
     relocated = row.get("移転後") or row.get("移転") or ""
     if _truthy_flag(relocated):
         tags.append("移転後")
-    elif (relocated or "").strip().lower() in {"0", "n", "no", "false", "いいえ", "移転前", "移転なし"}:
-        tags.append("移転前/非移転")
+    # 移転後でないときはラベル省略（数値＋玉数・信頼度だけで十分）
     if not tags:
         return rate
     return f"{rate}（{'・'.join(tags)}）"

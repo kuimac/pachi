@@ -1,0 +1,101 @@
+name: Prefetch ranks
+
+on:
+  workflow_dispatch:
+    inputs:
+      store:
+        description: Store to fetch (all or canonical name)
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - 中山UNO
+          - 中山ZoRoN
+          - エスパス日拓西武新宿駅前店
+          - 楽園町田店
+      mode:
+        description: morning=必須の無料データ差分 / adhoc=随時
+        required: true
+        default: adhoc
+        type: choice
+        options:
+          - morning
+          - adhoc
+  schedule:
+    # 08:15 JST ≈ 23:15 UTC (前日)
+    - cron: "15 23 * * *"
+    # 12:10 / 17:10 JST
+    - cron: "10 3 * * *"
+    - cron: "10 8 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prefetch-ranks
+  cancel-in-progress: false
+
+jobs:
+  prefetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve inputs
+        id: args
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            # 08:15 JST cron only → morning
+            HOUR_UTC="$(date -u +%H)"
+            if [[ "$HOUR_UTC" == "23" ]]; then
+              echo "mode=morning" >> "$GITHUB_OUTPUT"
+            else
+              echo "mode=adhoc" >> "$GITHUB_OUTPUT"
+            fi
+            echo "store=all" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+            echo "store=${{ inputs.store }}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "day=$(TZ=Asia/Tokyo date +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Prefetch free ranks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/prefetch_ranks.py \
+            --store "${{ steps.args.outputs.store }}" \
+            --mode "${{ steps.args.outputs.mode }}" \
+            --day "${{ steps.args.outputs.day }}"
+
+      - name: Commit CSV and diff reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            '*/出玉ランキング_*.csv' \
+            '*/無料データ差分.md' \
+            'tools/prefetch_snapshots/*/last.json' \
+            || true
+          # never stage personal / cache
+          git reset HEAD -- 'プレイ履歴.local.md' '.cache' 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          DAY="${{ steps.args.outputs.day }}"
+          MODE="${{ steps.args.outputs.mode }}"
+          STORE="${{ steps.args.outputs.store }}"
+          git commit -m "Prefetch ranks ${DAY} ${MODE} (${STORE})"
+          git push origin HEAD

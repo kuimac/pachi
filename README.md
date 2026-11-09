@@ -4,7 +4,7 @@
 
 **Pages トップ:** https://kuimac.github.io/pachi/
 
-個人の投資・収支・認証情報は置きません。手順は [`.cursor/skills/pachi-run/SKILL.md`](.cursor/skills/pachi-run/SKILL.md)、制約は [`.cursor/rules/pachi-analysis.mdc`](.cursor/rules/pachi-analysis.mdc)。構成は [`ディレクトリ構成.md`](ディレクトリ構成.md)。
+`プレイ履歴.md` と分析の個人収支は公開してよい。Cookie・認証情報・ローカル絶対パスは置かない。手順は [`.cursor/skills/pachi-run/SKILL.md`](.cursor/skills/pachi-run/SKILL.md)、制約は [`.cursor/rules/pachi-analysis.mdc`](.cursor/rules/pachi-analysis.mdc)。構成は [`ディレクトリ構成.md`](ディレクトリ構成.md)。
 
 ## Pages URL 一覧
 

@@ -176,8 +176,7 @@ def load_play_records() -> list[dict[str, object]]:
             parsed = _play_from_row(cells)
             if parsed:
                 records.append(parsed)
-    # 個人収支を Pages に出さない。分析MDの「朝の結果」は公開集計に混ぜない。
-    # records.extend(_plays_from_morning_results())
+    records.extend(_plays_from_morning_results())
 
     deduped: dict[tuple[str, str, str, str], dict[str, object]] = {}
     for row in records:

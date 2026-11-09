@@ -65,9 +65,13 @@ def _play_from_row(cells: list[str]) -> dict[str, object] | None:
     cashout = _parse_money(cells[6] if len(cells) > 6 else None)
     profit = _parse_money(cells[7] if len(cells) > 7 else None)
     note = cells[8].strip() if len(cells) > 8 else ""
-    if not machine and store and number:
+    if number in {"", "-", "—", "－", "不明"}:
+        number = "—"
+    if machine in {"-", "—", "－", "不明"}:
+        machine = ""
+    if not machine and store and number not in {"", "—"}:
         machine = resolve_unit_machine(store, number)
-    if not store or not number:
+    if not store:
         return None
     return {
         "date": day,
@@ -174,9 +178,12 @@ def load_play_records() -> list[dict[str, object]]:
                 records.append(parsed)
     records.extend(_plays_from_morning_results())
 
-    deduped: dict[tuple[str, str, str], dict[str, object]] = {}
+    deduped: dict[tuple[str, str, str, str], dict[str, object]] = {}
     for row in records:
-        key = (str(row["date"]), str(row["store"]), str(row["number"]))
+        number = str(row["number"]) or "—"
+        machine = str(row.get("machine") or "")
+        # 台番号不明は機種もキーに入れて同日同店の別プレイを潰さない
+        key = (str(row["date"]), str(row["store"]), number, machine if number == "—" else "")
         prev = deduped.get(key)
         if prev is None:
             deduped[key] = row
@@ -319,18 +326,25 @@ def play_result_card_html(dest: Path, row: dict[str, object]) -> str:
     if isinstance(cashout, int):
         detail_bits.append(f"換金 {cashout:,}円")
     detail = " · ".join(detail_bits)
-    find = f"{day} {store} {number} {machine} {note} {fmt_signed_yen(profit)}"
+    machine_label = machine or "機種不明"
+    number_label = number if number not in {"", "—"} else "台不明"
+    find = f"{day} {store} {number_label} {machine_label} {note} {fmt_signed_yen(profit)}"
     store_page = OUT / "店舗" / store / "index.html"
     unit_page = None
-    if machine and (ROOT / store / machine / number).is_dir():
+    if machine and number not in {"", "—"} and (ROOT / store / machine / number).is_dir():
         unit_page = OUT / store / site_name(machine) / number / "index.html"
     href_target = unit_page if unit_page else store_page
     note_html = f"<p>{escape(note)}</p>" if note else ""
+    invest_v = invest if isinstance(invest, int) else ""
+    cashout_v = cashout if isinstance(cashout, int) else ""
     return (
         f'<a class="card play-result{cls}" data-find="{escape(find)}" '
+        f'data-store="{escape(store)}" data-machine="{escape(machine_label)}" '
+        f'data-date="{escape(day)}" data-profit="{profit}" '
+        f'data-invest="{invest_v}" data-cashout="{cashout_v}" '
         f'href="{href(dest, href_target)}">'
         f'<span class="kicker">{escape(date_label(day))} · {escape(store)}</span>'
-        f"<h3>{escape(number)} {escape(machine)}</h3>"
+        f"<h3>{escape(number_label)} {escape(machine_label)}</h3>"
         f'<p class="play-profit">{escape(fmt_signed_yen(profit))}</p>'
         f"<p>{escape(detail)}</p>"
         f"{note_html}</a>"
@@ -344,12 +358,174 @@ def play_day_totals(rows: list[dict[str, object]]) -> list[tuple[str, dict[str, 
     return [(day, play_totals(items)) for day, items in sorted(by_day.items(), reverse=True)]
 
 
+def play_group_totals(
+    rows: list[dict[str, object]], key: str
+) -> list[tuple[str, dict[str, int]]]:
+    groups: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        if key == "store":
+            label = str(row["store"])
+        else:
+            label = str(row.get("machine") or "") or "機種不明"
+        groups.setdefault(label, []).append(row)
+    ordered = sorted(
+        groups.items(),
+        key=lambda item: (-play_totals(item[1])["profit"], item[0]),
+    )
+    return [(label, play_totals(items)) for label, items in ordered]
+
+
+def play_group_table_html(
+    title: str, table_id: str, rows: list[tuple[str, dict[str, int]]], label_header: str
+) -> str:
+    if not rows:
+        return ""
+    body_rows = []
+    for label, total in rows:
+        cls = "pos" if total["profit"] > 0 else "neg" if total["profit"] < 0 else ""
+        body_rows.append(
+            "<tr>"
+            f"<td>{escape(label)}</td>"
+            f"<td>{total['count']}</td>"
+            f"<td>{total['invest']:,}</td>"
+            f"<td>{total['cashout']:,}</td>"
+            f'<td class="{cls}">{escape(fmt_signed_yen(total["profit"]))}</td>'
+            "</tr>"
+        )
+    return (
+        f'<p class="section-label">{escape(title)}</p>'
+        f'<div class="table-wrap"><table class="data play-day-table" id="{escape(table_id)}">'
+        f"<thead><tr><th>{escape(label_header)}</th><th>件数</th><th>投資</th>"
+        "<th>換金</th><th>収支</th></tr></thead>"
+        f"<tbody>{''.join(body_rows)}</tbody></table></div>"
+    )
+
+
+def play_filter_script() -> str:
+    return """
+<script>
+(() => {
+  const storeEl = document.getElementById('play-filter-store');
+  const machineEl = document.getElementById('play-filter-machine');
+  const cardsRoot = document.getElementById('play-cards');
+  const totalsRoot = document.getElementById('play-totals');
+  const empty = document.getElementById('empty');
+  const dayBody = document.querySelector('#play-day-table tbody');
+  const storeBody = document.querySelector('#play-store-table tbody');
+  const machineBody = document.querySelector('#play-machine-table tbody');
+  if (!storeEl || !machineEl || !cardsRoot || !totalsRoot) return;
+
+  const yen = (n) => {
+    const sign = n > 0 ? '+' : '';
+    return sign + n.toLocaleString('ja-JP') + '円';
+  };
+  const dateLabel = (iso) => {
+    const m = String(iso).match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+    if (!m) return iso;
+    return `${Number(m[2])}/${Number(m[3])}`;
+  };
+  const cards = () => [...cardsRoot.querySelectorAll('.play-result')];
+
+  const visibleCards = () => {
+    const store = storeEl.value;
+    const machine = machineEl.value;
+    return cards().filter((card) => {
+      const okStore = store === 'all' || card.dataset.store === store;
+      const okMachine = machine === 'all' || card.dataset.machine === machine;
+      return okStore && okMachine;
+    });
+  };
+
+  const fillTable = (tbody, groups, labelFn) => {
+    if (!tbody) return;
+    const entries = Object.entries(groups).sort((a, b) => b[1].profit - a[1].profit || a[0].localeCompare(b[0], 'ja'));
+    tbody.innerHTML = entries.map(([label, g]) => {
+      const cls = g.profit > 0 ? 'pos' : g.profit < 0 ? 'neg' : '';
+      return `<tr><td>${labelFn(label)}</td><td>${g.count}</td><td>${g.invest.toLocaleString('ja-JP')}</td><td>${g.cashout.toLocaleString('ja-JP')}</td><td class="${cls}">${yen(g.profit)}</td></tr>`;
+    }).join('');
+  };
+
+  const apply = () => {
+    const store = storeEl.value;
+    const machine = machineEl.value;
+    const q = (document.getElementById('q')?.value || '').trim().toLowerCase();
+    let shown = 0;
+    const dayGroups = {};
+    const storeGroups = {};
+    const machineGroups = {};
+    let invest = 0, cashout = 0, profit = 0, wins = 0, losses = 0, count = 0;
+
+    cards().forEach((card) => {
+      const okStore = store === 'all' || card.dataset.store === store;
+      const okMachine = machine === 'all' || card.dataset.machine === machine;
+      const find = (card.dataset.find || card.textContent || '').toLowerCase();
+      const okSearch = !q || find.includes(q);
+      const show = okStore && okMachine && okSearch;
+      card.hidden = !show;
+      if (!show) return;
+      shown += 1;
+      const p = Number(card.dataset.profit || 0);
+      const inv = Number(card.dataset.invest || 0);
+      const cas = Number(card.dataset.cashout || 0);
+      profit += p;
+      invest += inv;
+      cashout += cas;
+      count += 1;
+      if (p > 0) wins += 1;
+      if (p < 0) losses += 1;
+      const day = card.dataset.date || '';
+      const st = card.dataset.store || '';
+      const mc = card.dataset.machine || '機種不明';
+      for (const [bucket, key] of [[dayGroups, day], [storeGroups, st], [machineGroups, mc]]) {
+        if (!bucket[key]) bucket[key] = {count:0, invest:0, cashout:0, profit:0};
+        bucket[key].count += 1;
+        bucket[key].invest += inv;
+        bucket[key].cashout += cas;
+        bucket[key].profit += p;
+      }
+    });
+
+    const cls = profit > 0 ? 'win' : profit < 0 ? 'lose' : '';
+    totalsRoot.className = `stats play-totals ${cls}`.trim();
+    totalsRoot.innerHTML = `
+      <div class="stat"><span>累計収支</span><b class="play-profit">${yen(profit)}</b></div>
+      <div class="stat"><span>累計投資</span><b>${invest.toLocaleString('ja-JP')}円</b></div>
+      <div class="stat"><span>累計換金</span><b>${cashout.toLocaleString('ja-JP')}円</b></div>
+      <div class="stat"><span>件数</span><b>${count}回（勝${wins} / 負${losses}）</b></div>`;
+
+    fillTable(dayBody, dayGroups, dateLabel);
+    fillTable(storeBody, storeGroups, (v) => v);
+    fillTable(machineBody, machineGroups, (v) => v);
+    if (empty) empty.hidden = shown > 0;
+  };
+
+  storeEl.addEventListener('change', apply);
+  machineEl.addEventListener('change', apply);
+  const q = document.getElementById('q');
+  if (q) q.addEventListener('input', apply);
+  apply();
+})();
+</script>
+"""
+
+
 def build_plays_page() -> Path:
     dest = OUT / "プレイ結果" / "index.html"
     dest.parent.mkdir(parents=True, exist_ok=True)
     rows = play_result_rows()
     totals = play_totals(rows)
     cards = "".join(play_result_card_html(dest, row) for row in rows)
+    stores = sorted({str(row["store"]) for row in rows})
+    machines = sorted(
+        {str(row.get("machine") or "") or "機種不明" for row in rows},
+        key=lambda name: (name == "機種不明", name),
+    )
+    store_opts = ['<option value="all" selected>全店舗</option>'] + [
+        f'<option value="{escape(name)}">{escape(name)}</option>' for name in stores
+    ]
+    machine_opts = ['<option value="all" selected>全機種</option>'] + [
+        f'<option value="{escape(name)}">{escape(name)}</option>' for name in machines
+    ]
     day_rows = []
     for day, day_total in play_day_totals(rows):
         cls = "pos" if day_total["profit"] > 0 else "neg" if day_total["profit"] < 0 else ""
@@ -366,30 +542,52 @@ def build_plays_page() -> Path:
     if day_rows:
         day_table = (
             '<p class="section-label">日別収支</p>'
-            '<div class="table-wrap"><table class="data play-day-table">'
+            '<div class="table-wrap"><table class="data play-day-table" id="play-day-table">'
             "<thead><tr><th>日付</th><th>件数</th><th>投資</th><th>換金</th><th>収支</th></tr></thead>"
             f"<tbody>{''.join(day_rows)}</tbody></table></div>"
         )
+    store_table = play_group_table_html(
+        "店舗別収支", "play-store-table", play_group_totals(rows, "store"), "店舗"
+    )
+    machine_table = play_group_table_html(
+        "機種別収支", "play-machine-table", play_group_totals(rows, "machine"), "機種"
+    )
+    filter_bar = (
+        '<div class="play-filters" role="group" aria-label="プレイ結果の絞り込み">'
+        '<label>店舗 <select id="play-filter-store">'
+        f"{''.join(store_opts)}</select></label>"
+        '<label>機種 <select id="play-filter-machine">'
+        f"{''.join(machine_opts)}</select></label>"
+        "</div>"
+    )
     if cards:
         list_block = (
             '<p class="section-label">明細</p>'
             f'<div class="doc-grid" id="play-cards">{cards}</div>'
         )
+        scripts = play_filter_script()
     else:
         list_block = (
             '<p class="intro">収支が入ったプレイはまだありません。'
             '<code>プレイ履歴.md</code> に追記するとここに出ます。</p>'
         )
+        scripts = ""
+    totals_block = play_totals_html(totals).replace(
+        'class="stats play-totals', 'id="play-totals" class="stats play-totals', 1
+    )
     body = f"""
 <h1>プレイ結果</h1>
-<p class="intro">自分が打った台の収支一覧と累計です。元データは <code>プレイ履歴.md</code>。</p>
-{play_totals_html(totals)}
+<p class="intro">自分が打った台の収支一覧と累計です。店舗・機種で絞り込めます。初期表示は全店舗・全機種。元データは <code>プレイ履歴.md</code>。</p>
+{filter_bar}
+{totals_block}
 {day_table}
+{store_table}
+{machine_table}
 {list_block}
 <input class="search" id="q" type="search" placeholder="日付、店舗、台番号、機種名" autocomplete="off">
 <p id="empty" class="empty" hidden>一致する結果がありません。</p>
 <p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
-{search_script([("plays", "play-cards")]) if cards else ""}
+{scripts}
 """
     page = shell(
         dest,
@@ -635,6 +833,7 @@ ALIASES = (
     ("プリンセス", ("プリプリ",)),
     ("なのは", ("なのは",)),
     ("ドラム", ("電音部",)),
+    ("アズール", ("アズレン", "アズレン2")),
 )
 
 DETAIL_ORDER = [

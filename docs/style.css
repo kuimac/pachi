@@ -788,3 +788,28 @@ summary::-webkit-details-marker { color: var(--accent); }
   .block, .lede, .card, .stat, .chart { box-shadow: none; }
   a { color: inherit; text-decoration: none; }
 }
+
+.play-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 8px 0 14px;
+  align-items: end;
+}
+.play-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.play-filters select {
+  min-width: 180px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font: inherit;
+  color: var(--ink);
+}

@@ -44,10 +44,13 @@ const applyCatalogFilter = () => {
   document.querySelectorAll('.doc-grid .card, .cards .card').forEach((card) => {
     const box = card.parentElement;
     const kindFilter = (box && box.dataset.kindFilter) || 'all';
+    const nameFilter = ((box && box.dataset.nameFilter) || '').trim().toLowerCase();
     const kind = card.dataset.kind || '';
+    const find = (card.dataset.find || '').toLowerCase();
     const kindOk = kindFilter === 'all' || !kind || kind === kindFilter;
-    const textOk = !query || (card.dataset.find || '').toLowerCase().includes(query);
-    const hit = kindOk && textOk;
+    const nameOk = !nameFilter || find.includes(nameFilter);
+    const textOk = !query || find.includes(query);
+    const hit = kindOk && nameOk && textOk;
     card.hidden = !hit;
     if (hit) shown += 1;
   });
@@ -58,8 +61,9 @@ const applyCatalogFilter = () => {
     const box = document.getElementById(boxId);
     if (!label || !box) return;
     const any = [...box.querySelectorAll(':scope > .card')].some((el) => !el.hidden);
-    // 種類フィルタだけではバーを残す（すべてに戻せなくなるため）
-    label.hidden = !!query && !any;
+    const nameFilter = (box.dataset.nameFilter || '').trim();
+    // 種類・機種名フィルタだけではバーを残す（すべてに戻せなくなるため）
+    label.hidden = !!query && !nameFilter && !any;
   });
   if (empty) empty.hidden = shown !== 0;
   if (typeof window.applyCardCollapse === 'function') window.applyCardCollapse();

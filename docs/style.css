@@ -477,6 +477,29 @@ table.dense td:last-child {
   margin: 22px 0 8px;
 }
 .section-head .section-label { margin: 0; }
+.section-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.section-filter {
+  width: min(220px, 100%);
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.84rem;
+}
+.section-filter:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
 .sort-bar {
   display: inline-flex;
   gap: 4px;
@@ -782,7 +805,7 @@ summary::-webkit-details-marker { color: var(--accent); }
 }
 
 @media print {
-  .top, .toc, .toc-panel, .search, .pager, .foot, .card-more { display: none !important; }
+  .top, .toc, .toc-panel, .search, .section-filter, .pager, .foot, .card-more { display: none !important; }
   .card-collapse > .card.is-collapsed { display: block !important; }
   body { background: white; }
   .block, .lede, .card, .stat, .chart { box-shadow: none; }

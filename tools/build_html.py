@@ -3120,10 +3120,13 @@ const applyCatalogFilter = () => {{
   document.querySelectorAll('.doc-grid .card, .cards .card').forEach((card) => {{
     const box = card.parentElement;
     const kindFilter = (box && box.dataset.kindFilter) || 'all';
+    const nameFilter = ((box && box.dataset.nameFilter) || '').trim().toLowerCase();
     const kind = card.dataset.kind || '';
+    const find = (card.dataset.find || '').toLowerCase();
     const kindOk = kindFilter === 'all' || !kind || kind === kindFilter;
-    const textOk = !query || (card.dataset.find || '').toLowerCase().includes(query);
-    const hit = kindOk && textOk;
+    const nameOk = !nameFilter || find.includes(nameFilter);
+    const textOk = !query || find.includes(query);
+    const hit = kindOk && nameOk && textOk;
     card.hidden = !hit;
     if (hit) shown += 1;
   }});
@@ -3134,8 +3137,9 @@ const applyCatalogFilter = () => {{
     const box = document.getElementById(boxId);
     if (!label || !box) return;
     const any = [...box.querySelectorAll(':scope > .card')].some((el) => !el.hidden);
-    // 種類フィルタだけではバーを残す（すべてに戻せなくなるため）
-    label.hidden = !!query && !any;
+    const nameFilter = (box.dataset.nameFilter || '').trim();
+    // 種類・機種名フィルタだけではバーを残す（すべてに戻せなくなるため）
+    label.hidden = !!query && !nameFilter && !any;
   }});
   if (empty) empty.hidden = shown !== 0;
   if (typeof window.applyCardCollapse === 'function') window.applyCardCollapse();
@@ -3150,7 +3154,7 @@ def kind_filter_script() -> str:
     return """
 <script>
 (() => {
-  const bind = (barId, boxId) => {
+  const bindKind = (barId, boxId) => {
     const bar = document.getElementById(barId);
     const box = document.getElementById(boxId);
     if (!bar || !box) return;
@@ -3166,8 +3170,24 @@ def kind_filter_script() -> str:
       if (typeof window.applyCatalogFilter === 'function') window.applyCatalogFilter();
     });
   };
-  bind('guide-kind', 'guide-cards');
-  bind('spec-kind', 'spec-cards');
+  const bindName = (inputId, boxId) => {
+    const input = document.getElementById(inputId);
+    const box = document.getElementById(boxId);
+    if (!input || !box) return;
+    box.dataset.nameFilter = '';
+    const apply = () => {
+      box.dataset.nameFilter = (input.value || '').trim();
+      // 機種名で絞ったときは先頭3件制限を外して結果を全部見せる
+      if (box.dataset.nameFilter) box.classList.add('is-expanded');
+      else box.classList.remove('is-expanded');
+      if (typeof window.applyCatalogFilter === 'function') window.applyCatalogFilter();
+    };
+    input.addEventListener('input', apply);
+  };
+  bindKind('guide-kind', 'guide-cards');
+  bindKind('spec-kind', 'spec-cards');
+  bindName('guide-name', 'guide-cards');
+  bindName('spec-name', 'spec-cards');
 })();
 </script>
 """
@@ -3631,15 +3651,21 @@ def build_index(
 {plays_block}
 <div class="section-head" id="guide">
   <p class="section-label">攻略情報</p>
-  <div class="sort-bar" id="guide-kind" role="group" aria-label="攻略情報の絞り込み">
-    {kind_bar}
+  <div class="section-tools">
+    <input class="section-filter" id="guide-name" type="search" placeholder="機種名（なのは、鬼がかり）" autocomplete="off" aria-label="攻略情報を機種名で絞り込み">
+    <div class="sort-bar" id="guide-kind" role="group" aria-label="攻略情報の種類">
+      {kind_bar}
+    </div>
   </div>
 </div>
 <div class="cards card-collapse" id="guide-cards" data-collapse-limit="3">{''.join(guide_html)}</div>
 <div class="section-head" id="spec">
   <p class="section-label">機種スペック</p>
-  <div class="sort-bar" id="spec-kind" role="group" aria-label="機種スペックの絞り込み">
-    {kind_bar}
+  <div class="section-tools">
+    <input class="section-filter" id="spec-name" type="search" placeholder="機種名（なのは、鬼がかり）" autocomplete="off" aria-label="機種スペックを機種名で絞り込み">
+    <div class="sort-bar" id="spec-kind" role="group" aria-label="機種スペックの種類">
+      {kind_bar}
+    </div>
   </div>
 </div>
 <div class="cards card-collapse" id="spec-cards" data-collapse-limit="3">{''.join(spec_html)}</div>

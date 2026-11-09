@@ -213,6 +213,8 @@ def guess_region(store: str) -> str:
         return "中山"
     if "池袋" in store:
         return "池袋"
+    if "新宿" in store or "カレイド" in store or "東宝" in store:
+        return "新宿"
     return "その他"
 
 
@@ -223,6 +225,8 @@ def guess_station(store: str) -> str:
         return "中山駅"
     if "池袋" in store:
         return "池袋駅"
+    if "新宿" in store or "カレイド" in store or "東宝" in store:
+        return "西武新宿駅"
     return "未設定"
 
 
@@ -320,6 +324,7 @@ def store_info_html(store: str, from_file: Path, stores_page: Path | None = None
         "貸出",
         "台数",
         "駐車場",
+        "イベント日",
         "店舗URL",
         "分析URL",
     ]

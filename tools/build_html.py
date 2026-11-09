@@ -23,6 +23,54 @@ DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 PROB_COLS = {"大当り確率", "初当り確率", "チャンス中大当り確率", "確率"}
 COUNT_COLS = {"スタート", "累計スタート", "大当り回数", "初当り回数", "最高出玉", "回数"}
 CHART_COLS = ["スタート", "大当り回数", "初当り回数", "最高出玉"]
+MEASURE_CSV = "実測回転"
+
+
+def latest_measure(folder: Path) -> dict[str, str] | None:
+    """台フォルダの実測回転.csv の最終行。無ければ None。"""
+    path = folder / f"{MEASURE_CSV}.csv"
+    if not path.exists():
+        return None
+    _, rows = read_csv(path)
+    if not rows:
+        return None
+    return rows[-1]
+
+
+def measure_rate_text(row: dict[str, str] | None) -> str:
+    """表示用の『回転/250玉』。換算列が無ければ回転数をそのまま。"""
+    if not row:
+        return "—"
+    for key in ("回転/250玉", "換算250玉あたり", "回転per250"):
+        value = (row.get(key) or "").strip()
+        if value:
+            return value
+    spins = (row.get("回転数") or "").strip()
+    balls = (row.get("玉数") or "").strip()
+    if spins and balls:
+        try:
+            rate = float(spins) * (250.0 / float(balls))
+            text = f"{rate:.1f}".rstrip("0").rstrip(".")
+            return text
+        except ValueError:
+            pass
+    return spins or "—"
+
+
+def measure_stat_html(folder: Path) -> str:
+    """台ページ用。最後の実測があれば stat を1つ返す。"""
+    row = latest_measure(folder)
+    if not row:
+        return ""
+    rate = measure_rate_text(row)
+    when = (row.get("日時") or row.get("日付") or "").strip()
+    label = "最後の回転/250玉"
+    if when:
+        label = f"最後の回転/250玉（{when}）"
+    return (
+        f'<div class="stat"><span>{escape(label)}</span>'
+        f"<b>{escape(rate)}</b></div>"
+    )
 
 KINDS = [
     ("やってはいけない", "caution"),
@@ -2103,6 +2151,9 @@ def build_unit_page(
     if first and latest:
         span = f'{escape(first.get("日付", ""))} 〜 {escape(latest.get("日付", ""))}（{escape(latest.get("相対日", ""))}）'
     stats = []
+    measure_html = measure_stat_html(folder)
+    if measure_html:
+        stats.append(measure_html)
     for column, label in (
         ("スタート", "最終スタート"),
         ("累計スタート", "累計スタート"),
@@ -2185,11 +2236,18 @@ def machine_sections_html(
             start = fmt_cell("スタート", latest.get("スタート", ""))
             wins = fmt_cell("大当り回数", latest.get("大当り回数", ""))
             best = fmt_cell("最高出玉", latest.get("最高出玉", ""))
+            measure = (latest.get("実測/250") or "").strip()
+            measure_line = (
+                f"<small>最後の回転/250玉 {escape(measure)}</small>"
+                if measure
+                else ""
+            )
             chips.append(
                 f'<a class="unit" data-find="{escape(number)}" href="{href(dest, page)}">'
                 f"<strong>{escape(number)}</strong>"
                 f"<small>スタート {escape(start)} · 大当り {escape(wins)}</small>"
-                f"<small>最高出玉 {escape(best)}</small></a>"
+                f"<small>最高出玉 {escape(best)}</small>"
+                f"{measure_line}</a>"
             )
         blocks.append(
             f'<section class="machine" id="m{index}" data-find="{escape(aliases_for(name))}">'
@@ -2798,7 +2856,13 @@ def main() -> None:
                 if summary.exists():
                     _, rows = read_csv(summary)
                     if rows:
-                        latest = rows[-1]
+                        latest = dict(rows[-1])
+                measure = latest_measure(folder)
+                if measure:
+                    latest["実測/250"] = measure_rate_text(measure)
+                    when = (measure.get("日時") or measure.get("日付") or "").strip()
+                    if when:
+                        latest["実測日時"] = when
                 index_units.append((number, unit_page, latest))
                 unit_map_base[number] = unit_page
             index_machines.append((name, guide, spec, index_units))

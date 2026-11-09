@@ -107,20 +107,120 @@ def measure_display_text(row: dict[str, str] | None) -> str:
     return f"{rate}（{'・'.join(tags)}）"
 
 
+def _parse_hit_minutes(value: str | None) -> int | None:
+    text = (value or "").strip()
+    if not text or text in {"--", "-", "—"}:
+        return None
+    try:
+        if len(text) == 3:
+            hour, minute = int(text[0]), int(text[1:])
+        elif len(text) >= 4:
+            hour, minute = int(text[:2]), int(text[2:4])
+        else:
+            return None
+        if hour > 23 or minute > 59:
+            return None
+        return hour * 60 + minute
+    except ValueError:
+        return None
+
+
+def estimate_rate_from_history(folder: Path, last_n: int = 6) -> dict[str, object] | None:
+    """大当り履歴から通常時区間の推定回転/250玉を出す（実測とは別）。
+
+    連チャン（5分以内 or スタート≤40）を塊にし、塊と塊のあいだの
+    スタート÷経過分×2.5 を区間値とする。直近 last_n 区間の中央値。
+    """
+    path = folder / "大当り履歴データ.csv"
+    if not path.exists():
+        return None
+    _, rows = read_csv(path)
+    if not rows:
+        return None
+    by_day: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        day = (row.get("日付") or "").strip()
+        if day:
+            by_day.setdefault(day, []).append(row)
+    segments: list[float] = []
+    for day in sorted(by_day):
+        hits: list[tuple[int, int]] = []
+        for row in by_day[day]:
+            count = (row.get("回数") or "").strip()
+            if count in {"", "-", "—"}:
+                continue
+            minutes = _parse_hit_minutes(row.get("時間"))
+            try:
+                starts = int(float((row.get("スタート") or "").strip()))
+            except ValueError:
+                continue
+            if minutes is None:
+                continue
+            hits.append((minutes, starts))
+        hits.sort()
+        chains: list[list[tuple[int, int]]] = []
+        for minutes, starts in hits:
+            if not chains:
+                chains.append([(minutes, starts)])
+                continue
+            prev_m, _prev_s = chains[-1][-1]
+            if minutes - prev_m <= 5 or starts <= 40:
+                chains[-1].append((minutes, starts))
+            else:
+                chains.append([(minutes, starts)])
+        for index in range(1, len(chains)):
+            prev_end = chains[index - 1][-1][0]
+            first_m, first_s = chains[index][0]
+            elapsed = first_m - prev_end
+            if first_s < 80 or elapsed < 12 or elapsed > 120:
+                continue
+            rate = first_s / elapsed * 2.5
+            if rate < 8 or rate > 30:
+                continue
+            segments.append(rate)
+    if not segments:
+        return None
+    use = segments[-last_n:]
+    ordered = sorted(use)
+    mid = ordered[len(ordered) // 2]
+    raw = f"{mid:.1f}".rstrip("0").rstrip(".")
+    return {
+        "rate": mid,
+        "n": len(use),
+        "raw": raw,
+        "text": f"{raw}（推定・{len(use)}区間）",
+    }
+
+
+def estimate_display_text(folder: Path) -> str:
+    """分析表・チップ用の推定表示。無ければ —。"""
+    estimated = estimate_rate_from_history(folder)
+    if not estimated:
+        return "—"
+    return str(estimated["text"])
+
+
 def measure_stat_html(folder: Path) -> str:
-    """台ページ用。最後の実測があれば stat を1つ返す。"""
+    """台ページ用。推定（取得）と実測があれば stat を返す。"""
+    parts: list[str] = []
+    estimated = estimate_rate_from_history(folder)
+    if estimated:
+        parts.append(
+            '<div class="stat"><span>推定回転/250玉（取得）</span>'
+            f"<b>{escape(str(estimated['text']))}</b></div>"
+        )
     row = latest_measure(folder)
-    if not row:
-        return ""
-    display = measure_display_text(row)
-    when = (row.get("日時") or row.get("日付") or "").strip()
-    label = "最後の回転/250玉"
-    if when:
-        label = f"最後の回転/250玉（{when}）"
-    return (
-        f'<div class="stat"><span>{escape(label)}</span>'
-        f"<b>{escape(display)}</b></div>"
-    )
+    if row:
+        display = measure_display_text(row)
+        when = (row.get("日時") or row.get("日付") or "").strip()
+        label = "実測回転/250玉"
+        if when:
+            label = f"実測回転/250玉（{when}）"
+        parts.append(
+            f'<div class="stat"><span>{escape(label)}</span>'
+            f"<b>{escape(display)}</b></div>"
+        )
+    return "".join(parts)
 
 KINDS = [
     ("やってはいけない", "caution"),
@@ -325,6 +425,9 @@ def store_info_html(store: str, from_file: Path, stores_page: Path | None = None
         "台数",
         "駐車場",
         "イベント日",
+        "イベント日公開日",
+        "日次集計リセット",
+        "台スタートリセット",
         "店舗URL",
         "分析URL",
     ]
@@ -2291,18 +2394,23 @@ def machine_sections_html(
             start = fmt_cell("スタート", latest.get("スタート", ""))
             wins = fmt_cell("大当り回数", latest.get("大当り回数", ""))
             best = fmt_cell("最高出玉", latest.get("最高出玉", ""))
+            estimated = (latest.get("推定/250") or "").strip()
             measure = (latest.get("実測/250") or "").strip()
-            measure_line = (
-                f"<small>最後の回転/250玉 {escape(measure)}</small>"
-                if measure
-                else ""
-            )
+            rate_lines = []
+            if estimated:
+                rate_lines.append(
+                    f"<small>推定/250玉 {escape(estimated)}</small>"
+                )
+            if measure:
+                rate_lines.append(
+                    f"<small>実測/250玉 {escape(measure)}</small>"
+                )
             chips.append(
                 f'<a class="unit" data-find="{escape(number)}" href="{href(dest, page)}">'
                 f"<strong>{escape(number)}</strong>"
                 f"<small>スタート {escape(start)} · 大当り {escape(wins)}</small>"
                 f"<small>最高出玉 {escape(best)}</small>"
-                f"{measure_line}</a>"
+                f"{''.join(rate_lines)}</a>"
             )
         blocks.append(
             f'<section class="machine" id="m{index}" data-find="{escape(aliases_for(name))}">'
@@ -2912,6 +3020,10 @@ def main() -> None:
                     _, rows = read_csv(summary)
                     if rows:
                         latest = dict(rows[-1])
+                estimated = estimate_rate_from_history(folder)
+                if estimated:
+                    latest["推定/250"] = str(estimated["text"])
+                    latest["推定raw"] = str(estimated["raw"])
                 measure = latest_measure(folder)
                 if measure:
                     latest["実測/250"] = measure_display_text(measure)

@@ -536,6 +536,12 @@ a.unit-link:hover { text-decoration: underline; }
 }
 .sort-bar button:hover { color: var(--accent); }
 .sort-bar button[aria-pressed="true"]:hover { color: #ffd7a8; }
+.card .rate-line {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
 
 details {
   background: var(--paper);

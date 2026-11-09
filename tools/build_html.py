@@ -1469,6 +1469,53 @@ def title_of(text: str, fallback: str) -> str:
     return match.group(1).strip() if match else fallback
 
 
+def parse_guide_rates(text: str) -> dict[str, float | None]:
+    """攻略MDから RUSH継続率(%)・初当り分母(1/x の x) を抜く。"""
+    continue_pct: float | None = None
+    for pat in (
+        r"継続率\s*[：:／/]?\s*約?\s*(\d+(?:\.\d+)?)\s*%",
+        r"/\s*継続率?\s*約?\s*(\d+(?:\.\d+)?)\s*%",
+        r"継続\s*約?\s*(\d+(?:\.\d+)?)\s*%",
+        r"RUSH[^%\n]{0,40}?継続[^%\n]{0,12}?約?\s*(\d+(?:\.\d+)?)\s*%",
+    ):
+        match = re.search(pat, text)
+        if match:
+            continue_pct = float(match.group(1))
+            break
+
+    first_hit_den: float | None = None
+    for pat in (
+        r"\|\s*(?:大当り確率|図柄揃い|合算大当り)\s*\|\s*[^|\n]*?1\s*/\s*(\d+(?:\.\d+)?)",
+        r"(?:通常|図柄揃い)\s*約?\s*1\s*/\s*(\d+(?:\.\d+)?)",
+        r"大当り確率[^|\n]{0,20}?1\s*/\s*(\d+(?:\.\d+)?)",
+        r"初当り確率[^|\n]{0,20}?1\s*/\s*(\d+(?:\.\d+)?)",
+    ):
+        match = re.search(pat, text)
+        if match:
+            first_hit_den = float(match.group(1))
+            break
+
+    entry_pct: float | None = None
+    for pat in (
+        r"突入率\s*[：:／/]?\s*約?\s*(\d+(?:\.\d+)?)\s*%",
+        r"\|\s*RUSH突入\s*\|\s*約?\s*(\d+(?:\.\d+)?)\s*%",
+        r"RUSH突入\s*約?\s*(\d+(?:\.\d+)?)\s*%",
+        r"/\s*突入率?\s*約?\s*(\d+(?:\.\d+)?)\s*%",
+        r"初当り[^。\n]{0,20}?(\d+(?:\.\d+)?)\s*%\s*が\s*RUSH",
+        r"突入\s*約?\s*(\d+(?:\.\d+)?)\s*%",
+    ):
+        match = re.search(pat, text)
+        if match:
+            entry_pct = float(match.group(1))
+            break
+
+    return {
+        "continue_pct": continue_pct,
+        "first_hit_den": first_hit_den,
+        "entry_pct": entry_pct,
+    }
+
+
 def load_machine_borders() -> list[dict[str, object]]:
     """攻略情報の等価ボーダー一覧。機種名サジェスト用。"""
     guide_dir = ROOT / "攻略情報"
@@ -3391,6 +3438,72 @@ def kind_filter_script() -> str:
 """
 
 
+def guide_sort_script() -> str:
+    return """
+<script>
+(() => {
+  const box = document.getElementById('guide-cards');
+  const bar = document.getElementById('guide-sort');
+  if (!box || !bar) return;
+  const cards = [...box.querySelectorAll(':scope > .card')];
+  cards.forEach((card, index) => { card.dataset.order = String(index); });
+
+  const num = (card, key) => {
+    const raw = card.dataset[key];
+    if (raw === undefined || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const apply = (mode) => {
+    bar.querySelectorAll('button[data-sort]').forEach((btn) => {
+      btn.setAttribute('aria-pressed', btn.dataset.sort === mode ? 'true' : 'false');
+    });
+    const sorted = [...cards].sort((a, b) => {
+      if (mode === 'rush-desc' || mode === 'rush-asc') {
+        const av = num(a, 'rushContinue');
+        const bv = num(b, 'rushContinue');
+        if (av === null && bv === null) return Number(a.dataset.order) - Number(b.dataset.order);
+        if (av === null) return 1;
+        if (bv === null) return -1;
+        const cmp = mode === 'rush-desc' ? bv - av : av - bv;
+        if (cmp !== 0) return cmp;
+      } else if (mode === 'first-sweet' || mode === 'first-hard') {
+        // 分母が小さいほど初当りは甘い
+        const av = num(a, 'firstHit');
+        const bv = num(b, 'firstHit');
+        if (av === null && bv === null) return Number(a.dataset.order) - Number(b.dataset.order);
+        if (av === null) return 1;
+        if (bv === null) return -1;
+        const cmp = mode === 'first-sweet' ? av - bv : bv - av;
+        if (cmp !== 0) return cmp;
+      } else if (mode === 'entry-desc' || mode === 'entry-asc') {
+        const av = num(a, 'rushEntry');
+        const bv = num(b, 'rushEntry');
+        if (av === null && bv === null) return Number(a.dataset.order) - Number(b.dataset.order);
+        if (av === null) return 1;
+        if (bv === null) return -1;
+        const cmp = mode === 'entry-desc' ? bv - av : av - bv;
+        if (cmp !== 0) return cmp;
+      }
+      return Number(a.dataset.order) - Number(b.dataset.order);
+    });
+    sorted.forEach((card) => box.appendChild(card));
+    if (mode !== 'default') box.classList.add('is-expanded');
+    if (typeof window.applyCardCollapse === 'function') window.applyCardCollapse();
+    if (typeof window.applyCatalogFilter === 'function') window.applyCatalogFilter();
+  };
+
+  bar.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-sort]');
+    if (!btn) return;
+    apply(btn.dataset.sort || 'default');
+  });
+})();
+</script>
+"""
+
+
 def build_store_page(
     day: str,
     store: str,
@@ -3631,7 +3744,9 @@ def store_cards_sort_script() -> str:
 
 def build_index(
     store_cards: list[tuple[str, str, str, Path, str]],
-    guide_cards: list[tuple[str, str, Path, Path | None, list[tuple[str, Path]]]],
+    guide_cards: list[
+        tuple[str, str, Path, Path | None, list[tuple[str, Path]], dict[str, float | None]]
+    ],
     spec_cards: list[
         tuple[str, str, Path, Path | None, list[tuple[str, Path]], list[str]]
     ],
@@ -3692,7 +3807,7 @@ def build_index(
     machine_plays = play_summary_by_machine()
 
     guide_html = []
-    for title, summary, page, spec, units in guide_cards:
+    for title, summary, page, spec, units, rates in guide_cards:
         extra_bits = []
         if spec:
             extra_bits.append(f'<a href="{href(dest, spec)}">スペック</a>')
@@ -3704,11 +3819,34 @@ def build_index(
         play_find = f" 打った {fmt_date(str(play['date']))}" if play else ""
         find = f"{aliases_for(title)} {kind} " + " ".join(num for num, _ in units) + play_find
         play_tag = play_tag_html(str(play["date"])) if play else ""
+        rate_bits = []
+        cont = rates.get("continue_pct")
+        entry = rates.get("entry_pct")
+        first_den = rates.get("first_hit_den")
+        if cont is not None:
+            rate_bits.append(f"継続 {cont:g}%")
+            find += f" 継続{cont:g}"
+        if entry is not None:
+            rate_bits.append(f"突入 {entry:g}%")
+            find += f" 突入{entry:g}"
+        if first_den is not None:
+            den_txt = f"{first_den:g}"
+            rate_bits.append(f"初当 1/{den_txt}")
+            find += f" 初当1/{den_txt}"
+        rate_line = (
+            f'<p class="rate-line">{escape(" · ".join(rate_bits))}</p>' if rate_bits else ""
+        )
         play_tags = f'<div class="tags">{play_tag}</div>' if play_tag else ""
+        data_rush = "" if cont is None else f"{cont:g}"
+        data_entry = "" if entry is None else f"{entry:g}"
+        data_first = "" if first_den is None else f"{first_den:g}"
         guide_html.append(
-            f'<div class="card" data-kind="{escape(kind)}" data-find="{escape(find)}">'
+            f'<div class="card" data-kind="{escape(kind)}" data-find="{escape(find)}" '
+            f'data-rush-continue="{escape(data_rush)}" data-rush-entry="{escape(data_entry)}" '
+            f'data-first-hit="{escape(data_first)}">'
             f'<a href="{href(dest, page)}"><span class="kicker">攻略 · {escape(kind)}</span>'
             f"<h3>{escape(title)}</h3>"
+            f"{rate_line}"
             f"<p>{escape(summary)}</p>"
             f"{play_tags}</a>{extra}</div>"
         )
@@ -3854,6 +3992,15 @@ def build_index(
     <div class="sort-bar" id="guide-kind" role="group" aria-label="攻略情報の種類">
       {kind_bar}
     </div>
+    <div class="sort-bar" id="guide-sort" role="group" aria-label="攻略情報の並び">
+      <button type="button" data-sort="default" aria-pressed="true">標準</button>
+      <button type="button" data-sort="rush-desc" aria-pressed="false">継続率↓</button>
+      <button type="button" data-sort="rush-asc" aria-pressed="false">継続率↑</button>
+      <button type="button" data-sort="first-sweet" aria-pressed="false">初当り甘い順</button>
+      <button type="button" data-sort="first-hard" aria-pressed="false">初当り辛い順</button>
+      <button type="button" data-sort="entry-desc" aria-pressed="false">突入率↓</button>
+      <button type="button" data-sort="entry-asc" aria-pressed="false">突入率↑</button>
+    </div>
   </div>
 </div>
 <div class="cards card-collapse" id="guide-cards" data-collapse-limit="3">{''.join(guide_html)}</div>
@@ -3873,6 +4020,7 @@ def build_index(
 {date_cards_sort_script()}
 {store_cards_sort_script()}
 {kind_filter_script()}
+{guide_sort_script()}
 """
     page = shell(dest, "wop", "", body, wide=True)
     write(dest, page)
@@ -4116,8 +4264,23 @@ def main() -> None:
         text = source.read_text(encoding="utf-8")
         key = site_name(source.stem)
         units = all_units_by_machine.get(key, [])
+        rates = parse_guide_rates(text)
+        # 攻略に初当り分母が無いときはスペック側を補充
+        if rates.get("first_hit_den") is None:
+            spec_path = ROOT / "機種スペック" / f"{source.stem}.md"
+            if spec_path.exists():
+                rates["first_hit_den"] = parse_guide_rates(
+                    spec_path.read_text(encoding="utf-8")
+                ).get("first_hit_den")
         guide_cards.append(
-            (title_of(text, source.stem), blurb(text), guide_out[key], spec_out.get(key), units)
+            (
+                title_of(text, source.stem),
+                blurb(text),
+                guide_out[key],
+                spec_out.get(key),
+                units,
+                rates,
+            )
         )
 
     spec_cards = []

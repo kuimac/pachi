@@ -782,7 +782,8 @@ summary::-webkit-details-marker { color: var(--accent); }
 }
 
 @media print {
-  .top, .toc, .toc-panel, .search, .pager, .foot { display: none !important; }
+  .top, .toc, .toc-panel, .search, .pager, .foot, .card-more { display: none !important; }
+  .card-collapse > .card.is-collapsed { display: block !important; }
   body { background: white; }
   .block, .lede, .card, .stat, .chart { box-shadow: none; }
   a { color: inherit; text-decoration: none; }

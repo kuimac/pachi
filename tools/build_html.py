@@ -2618,6 +2618,10 @@ def discover_child_pages(from_file: Path) -> list[tuple[str, Path]]:
             if sub.name in _TOP_SIDE_DIRS or DATE_RE.fullmatch(sub.name):
                 if (sub / "index.html").exists():
                     add(sub.name, sub / "index.html")
+                elif sub.name == "解説":
+                    htmls = sorted(sub.glob("*.html"))
+                    if len(htmls) == 1:
+                        add(htmls[0].stem, htmls[0])
         return items
 
     src_dir: Path | None = None
@@ -2682,9 +2686,16 @@ def discover_child_pages(from_file: Path) -> list[tuple[str, Path]]:
 
 def sidemenu_html(from_file: Path) -> str:
     children = discover_child_pages(from_file)
-    if not children:
-        return ""
-    links = []
+    links: list[str] = []
+    if from_file == OUT / "index.html":
+        # 専用 index が無い主要セクションはページ内アンカーへ
+        for label, anchor in (
+            ("店舗", "#stores"),
+            ("解説", "#explain"),
+            ("攻略情報", "#guide"),
+            ("機種スペック", "#spec"),
+        ):
+            links.append(f'<a href="{anchor}">{escape(label)}</a>')
     for label, path in children:
         current = ""
         try:
@@ -2693,6 +2704,8 @@ def sidemenu_html(from_file: Path) -> str:
         except OSError:
             pass
         links.append(f'<a href="{href(from_file, path)}"{current}>{escape(label)}</a>')
+    if not links:
+        return ""
     parent_link = ""
     if from_file.name != "index.html":
         parent = from_file.parent / "index.html"

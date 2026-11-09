@@ -288,6 +288,29 @@ table.dense td:last-child {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
 }
+.card-collapse > .card.is-collapsed { display: none !important; }
+.card-more {
+  appearance: none;
+  display: block;
+  width: 100%;
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.card-more:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.card-more[aria-expanded="true"] {
+  border-style: solid;
+}
 .card {
   display: block;
   background: var(--paper);

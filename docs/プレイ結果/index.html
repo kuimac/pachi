@@ -56,11 +56,12 @@ const applyCatalogFilter = () => {
     const label = document.getElementById(labelId);
     const box = document.getElementById(boxId);
     if (!label || !box) return;
-    const any = [...box.children].some((el) => !el.hidden);
+    const any = [...box.querySelectorAll(':scope > .card')].some((el) => !el.hidden);
     // 種類フィルタだけではバーを残す（すべてに戻せなくなるため）
     label.hidden = !!query && !any;
   });
   if (empty) empty.hidden = shown !== 0;
+  if (typeof window.applyCardCollapse === 'function') window.applyCardCollapse();
 };
 if (q) q.addEventListener('input', applyCatalogFilter);
 window.applyCatalogFilter = applyCatalogFilter;

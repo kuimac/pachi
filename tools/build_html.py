@@ -2831,6 +2831,55 @@ def machine_sections_html(
     return "".join(blocks)
 
 
+def card_collapse_script(limit: int = 3) -> str:
+    """トップ等のカード一覧で、先頭 limit 件以外を展開ボタンで出す。"""
+    return f"""
+<script>
+(() => {{
+  const LIMIT = {limit};
+  const applyCardCollapse = () => {{
+    document.querySelectorAll('.card-collapse').forEach((box) => {{
+      const limit = Number(box.dataset.collapseLimit || LIMIT);
+      const cards = [...box.querySelectorAll(':scope > .card')].filter((card) => !card.hidden);
+      const expanded = box.classList.contains('is-expanded');
+      cards.forEach((card, index) => {{
+        card.classList.toggle('is-collapsed', !expanded && index >= limit);
+      }});
+      let btn = box.nextElementSibling;
+      if (!btn || !btn.classList.contains('card-more')) {{
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'card-more';
+        box.insertAdjacentElement('afterend', btn);
+        btn.addEventListener('click', () => {{
+          box.classList.toggle('is-expanded');
+          applyCardCollapse();
+        }});
+      }}
+      const extra = Math.max(0, cards.length - limit);
+      if (extra === 0) {{
+        btn.hidden = true;
+        box.classList.remove('is-expanded');
+        cards.forEach((card) => card.classList.remove('is-collapsed'));
+        return;
+      }}
+      btn.hidden = false;
+      const open = box.classList.contains('is-expanded');
+      btn.textContent = open ? '閉じる' : `ほか ${{extra}} 件を表示`;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }});
+  }};
+  window.applyCardCollapse = applyCardCollapse;
+  if (document.readyState === 'loading') {{
+    document.addEventListener('DOMContentLoaded', applyCardCollapse);
+  }} else {{
+    applyCardCollapse();
+  }}
+}})();
+</script>
+"""
+
+
 def search_script(section_pairs: list[tuple[str, str]]) -> str:
     pairs = ",\n    ".join(f"['{label}', '{box}']" for label, box in section_pairs)
     return f"""
@@ -2867,11 +2916,12 @@ const applyCatalogFilter = () => {{
     const label = document.getElementById(labelId);
     const box = document.getElementById(boxId);
     if (!label || !box) return;
-    const any = [...box.children].some((el) => !el.hidden);
+    const any = [...box.querySelectorAll(':scope > .card')].some((el) => !el.hidden);
     // 種類フィルタだけではバーを残す（すべてに戻せなくなるため）
     label.hidden = !!query && !any;
   }});
   if (empty) empty.hidden = shown !== 0;
+  if (typeof window.applyCardCollapse === 'function') window.applyCardCollapse();
 }};
 if (q) q.addEventListener('input', applyCatalogFilter);
 window.applyCatalogFilter = applyCatalogFilter;
@@ -3089,6 +3139,7 @@ def date_cards_sort_script() -> str:
       return Number(a.dataset.order) - Number(b.dataset.order);
     });
     sorted.forEach((card) => box.appendChild(card));
+    if (typeof window.applyCardCollapse === 'function') window.applyCardCollapse();
   };
   bar.addEventListener('click', (event) => {
     const btn = event.target.closest('button[data-sort]');
@@ -3131,6 +3182,7 @@ def store_cards_sort_script() -> str:
       return Number(a.dataset.order) - Number(b.dataset.order);
     });
     sorted.forEach((card) => box.appendChild(card));
+    if (typeof window.applyCardCollapse === 'function') window.applyCardCollapse();
   };
   bar.addEventListener('click', (event) => {
     const btn = event.target.closest('button[data-sort]');
@@ -3258,7 +3310,7 @@ def build_index(
     result_rows = play_result_rows()
     play_page = OUT / "プレイ結果" / "index.html"
     totals = play_totals(result_rows)
-    play_html = [play_result_card_html(dest, row) for row in result_rows[:6]]
+    play_html = [play_result_card_html(dest, row) for row in result_rows]
     plays_block = ""
     if play_html or load_play_records():
         more = (
@@ -3270,7 +3322,7 @@ def build_index(
                 '<p class="section-label">プレイ結果</p>'
                 "</div>"
                 f"{play_totals_html(totals)}"
-                f'<div class="doc-grid" id="play-cards">{"".join(play_html)}</div>'
+                f'<div class="doc-grid card-collapse" id="play-cards" data-collapse-limit="3">{"".join(play_html)}</div>'
                 f"{more}"
             )
         else:
@@ -3295,7 +3347,7 @@ def build_index(
     if explain_html:
         explain_block = (
             '<p class="section-label" id="explain">解説</p>'
-            f'<div class="doc-grid" id="explain-cards">{"".join(explain_html)}</div>'
+            f'<div class="doc-grid card-collapse" id="explain-cards" data-collapse-limit="3">{"".join(explain_html)}</div>'
         )
         search_pairs = [("explain", "explain-cards"), *search_pairs]
 
@@ -3307,7 +3359,7 @@ def build_index(
         '<button type="button" data-sort="region" aria-pressed="false">地域順</button>'
         '<button type="button" data-sort="station" aria-pressed="false">最寄り駅順</button>'
         "</div></div>"
-        f'<div class="doc-grid" id="store-cards">{"".join(store_html)}</div>'
+        f'<div class="doc-grid card-collapse" id="store-cards" data-collapse-limit="3">{"".join(store_html)}</div>'
         if store_html
         else ""
     )
@@ -3358,7 +3410,7 @@ def build_index(
     <button type="button" data-sort="station" aria-pressed="false">最寄り駅順</button>
   </div>
 </div>
-<div class="doc-grid" id="date-cards">{''.join(date_html)}</div>
+<div class="doc-grid card-collapse" id="date-cards" data-collapse-limit="3">{''.join(date_html)}</div>
 {plays_block}
 <div class="section-head" id="guide">
   <p class="section-label">攻略情報</p>
@@ -3366,15 +3418,16 @@ def build_index(
     {kind_bar}
   </div>
 </div>
-<div class="cards" id="guide-cards">{''.join(guide_html)}</div>
+<div class="cards card-collapse" id="guide-cards" data-collapse-limit="3">{''.join(guide_html)}</div>
 <div class="section-head" id="spec">
   <p class="section-label">機種スペック</p>
   <div class="sort-bar" id="spec-kind" role="group" aria-label="機種スペックの絞り込み">
     {kind_bar}
   </div>
 </div>
-<div class="cards" id="spec-cards">{''.join(spec_html)}</div>
+<div class="cards card-collapse" id="spec-cards" data-collapse-limit="3">{''.join(spec_html)}</div>
 <p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
+{card_collapse_script(3)}
 {search_script(search_pairs)}
 {date_cards_sort_script()}
 {store_cards_sort_script()}

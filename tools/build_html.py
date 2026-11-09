@@ -270,7 +270,12 @@ def fmt_signed_yen(value: int | None) -> str:
 
 
 def play_result_rows() -> list[dict[str, object]]:
-    return [row for row in load_play_records() if row.get("profit") is not None]
+    """収支または投資がある行を明細対象にする。累計収支は収支がある行だけ。"""
+    return [
+        row
+        for row in load_play_records()
+        if row.get("profit") is not None or row.get("invest") is not None
+    ]
 
 
 def play_totals(rows: list[dict[str, object]] | None = None) -> dict[str, int]:
@@ -281,8 +286,10 @@ def play_totals(rows: list[dict[str, object]] | None = None) -> dict[str, int]:
     wins = sum(1 for row in rows if isinstance((v := row.get("profit")), int) and v > 0)
     losses = sum(1 for row in rows if isinstance((v := row.get("profit")), int) and v < 0)
     even = sum(1 for row in rows if isinstance((v := row.get("profit")), int) and v == 0)
+    scored = sum(1 for row in rows if isinstance(row.get("profit"), int))
     return {
         "count": len(rows),
+        "scored": scored,
         "invest": invest,
         "cashout": cashout,
         "profit": profit,
@@ -301,15 +308,18 @@ def play_totals_html(totals: dict[str, int]) -> str:
         f'<div class="stat"><span>累計投資</span><b>{totals["invest"]:,}円</b></div>'
         f'<div class="stat"><span>累計換金</span><b>{totals["cashout"]:,}円</b></div>'
         f'<div class="stat"><span>件数</span><b>{totals["count"]}回'
-        f'（勝{totals["wins"]} / 負{totals["losses"]}）</b></div>'
+        f'（収支判明 {totals.get("scored", totals["wins"] + totals["losses"] + totals["even"])} · '
+        f'勝{totals["wins"]} / 負{totals["losses"]}）</b></div>'
         f"</div>"
     )
 
 
 def play_result_card_html(dest: Path, row: dict[str, object]) -> str:
     profit = row.get("profit")
-    assert isinstance(profit, int)
-    cls = " win" if profit > 0 else " lose" if profit < 0 else ""
+    has_profit = isinstance(profit, int)
+    cls = ""
+    if has_profit:
+        cls = " win" if profit > 0 else " lose" if profit < 0 else ""
     day = str(row["date"])
     store = str(row["store"])
     number = str(row["number"])
@@ -325,10 +335,13 @@ def play_result_card_html(dest: Path, row: dict[str, object]) -> str:
         detail_bits.append(f"出玉 {balls:,}発")
     if isinstance(cashout, int):
         detail_bits.append(f"換金 {cashout:,}円")
+    if not has_profit:
+        detail_bits.append("収支不明")
     detail = " · ".join(detail_bits)
     machine_label = machine or "機種不明"
     number_label = number if number not in {"", "—"} else "台不明"
-    find = f"{day} {store} {number_label} {machine_label} {note} {fmt_signed_yen(profit)}"
+    profit_text = fmt_signed_yen(profit) if has_profit else "収支不明"
+    find = f"{day} {store} {number_label} {machine_label} {note} {profit_text}"
     store_page = OUT / "店舗" / store / "index.html"
     unit_page = None
     if machine and number not in {"", "—"} and (ROOT / store / machine / number).is_dir():
@@ -337,15 +350,16 @@ def play_result_card_html(dest: Path, row: dict[str, object]) -> str:
     note_html = f"<p>{escape(note)}</p>" if note else ""
     invest_v = invest if isinstance(invest, int) else ""
     cashout_v = cashout if isinstance(cashout, int) else ""
+    profit_attr = str(profit) if has_profit else ""
     return (
         f'<a class="card play-result{cls}" data-find="{escape(find)}" '
         f'data-store="{escape(store)}" data-machine="{escape(machine_label)}" '
-        f'data-date="{escape(day)}" data-profit="{profit}" '
+        f'data-date="{escape(day)}" data-profit="{profit_attr}" '
         f'data-invest="{invest_v}" data-cashout="{cashout_v}" '
         f'href="{href(dest, href_target)}">'
         f'<span class="kicker">{escape(date_label(day))} · {escape(store)}</span>'
         f"<h3>{escape(number_label)} {escape(machine_label)}</h3>"
-        f'<p class="play-profit">{escape(fmt_signed_yen(profit))}</p>'
+        f'<p class="play-profit">{escape(profit_text)}</p>'
         f"<p>{escape(detail)}</p>"
         f"{note_html}</a>"
     )
@@ -453,7 +467,7 @@ def play_filter_script() -> str:
     const dayGroups = {};
     const storeGroups = {};
     const machineGroups = {};
-    let invest = 0, cashout = 0, profit = 0, wins = 0, losses = 0, count = 0;
+    let invest = 0, cashout = 0, profit = 0, wins = 0, losses = 0, count = 0, scored = 0;
 
     cards().forEach((card) => {
       const okStore = store === 'all' || card.dataset.store === store;
@@ -464,15 +478,19 @@ def play_filter_script() -> str:
       card.hidden = !show;
       if (!show) return;
       shown += 1;
-      const p = Number(card.dataset.profit || 0);
+      const hasProfit = card.dataset.profit !== undefined && card.dataset.profit !== '';
+      const p = hasProfit ? Number(card.dataset.profit) : 0;
       const inv = Number(card.dataset.invest || 0);
       const cas = Number(card.dataset.cashout || 0);
-      profit += p;
+      if (hasProfit) {
+        profit += p;
+        scored += 1;
+        if (p > 0) wins += 1;
+        if (p < 0) losses += 1;
+      }
       invest += inv;
       cashout += cas;
       count += 1;
-      if (p > 0) wins += 1;
-      if (p < 0) losses += 1;
       const day = card.dataset.date || '';
       const st = card.dataset.store || '';
       const mc = card.dataset.machine || '機種不明';
@@ -481,7 +499,7 @@ def play_filter_script() -> str:
         bucket[key].count += 1;
         bucket[key].invest += inv;
         bucket[key].cashout += cas;
-        bucket[key].profit += p;
+        if (hasProfit) bucket[key].profit += p;
       }
     });
 
@@ -491,7 +509,7 @@ def play_filter_script() -> str:
       <div class="stat"><span>累計収支</span><b class="play-profit">${yen(profit)}</b></div>
       <div class="stat"><span>累計投資</span><b>${invest.toLocaleString('ja-JP')}円</b></div>
       <div class="stat"><span>累計換金</span><b>${cashout.toLocaleString('ja-JP')}円</b></div>
-      <div class="stat"><span>件数</span><b>${count}回（勝${wins} / 負${losses}）</b></div>`;
+      <div class="stat"><span>件数</span><b>${count}回（収支判明 ${scored} · 勝${wins} / 負${losses}）</b></div>`;
 
     fillTable(dayBody, dayGroups, dateLabel);
     fillTable(storeBody, storeGroups, (v) => v);

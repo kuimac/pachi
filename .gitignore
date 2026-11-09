@@ -4,3 +4,7 @@ __pycache__/
 .venv
 
 .cache/
+
+# personal / local only
+プレイ履歴.local.md
+*.local.md

@@ -16,6 +16,13 @@ description: >-
 
 ## 手順
 
+### 0. 公開リポジトリの取り扱い
+
+- このリポジトリと GitHub Pages は **公開前提**。個人情報・個人の投資／収支／実プレイ明細・ローカル絶対パス・Cookie・認証情報は置かない。
+- 個人プレイは `プレイ履歴.local.md`（gitignore）のみ。公開の `プレイ履歴.md` は空テンプレのまま。
+- スマホ取得用の GitHub Actions も無料公開データだけ。有料ログインは扱わない。
+
+
 ### 1. 店とモードを決める
 
 1. [`店舗一覧.md`](../../../店舗一覧.md) で正規店名・分析URL・別名を読む。
@@ -135,11 +142,13 @@ description: >-
   - Pages: https://kuimac.github.io/pachi/
   - 店舗ページ: `https://kuimac.github.io/pachi/<YYYY-MM-DD>/<URLエンコード店舗名>/`
 
-### 5. Remote / Cloud
+### 5. Remote / Cloud / Actions
 
 1. スマホ・Remote では **まず PC Agent**。
-2. PC 不可のときだけ Cloud Agent。
-3. 公開完了の定義は **main への push 成功**。
+2. PC 不可のとき、無料ランキングは GitHub Actions `Prefetch ranks`（`workflow_dispatch`）で CSV を置いてから分析してよい。
+3. **朝イチ**は prefetch の `mode=morning` 差分レポートで、無料公開の取得範囲に変更がないか確認してから戦略 MD を書く（変更なしも明記）。
+4. 有料・CAPTCHA・ログイン壁は Actions でも取れない。迂回しない。
+5. 公開完了の定義は **main への push 成功**。
 
 ## やらないこと
 
@@ -147,3 +156,4 @@ description: >-
 - ログイン壁の回避・利用規約違反になりうる自動化
 - 分析だけで push しないこと
 - `.env` や秘密情報の commit
+- 個人情報・個人収支・ローカル絶対パス（`/Users/...`）・Cookie の commit

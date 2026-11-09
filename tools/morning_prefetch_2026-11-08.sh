@@ -2,7 +2,8 @@
 # Prefetch 楽園町田店 / 中山UNO morning data at ~09:00 for 2026-11-08 analysis.
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
-OUT="./.cache/morning-2026-11-08"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+OUT="$ROOT/.cache/morning-2026-11-08"
 mkdir -p "$OUT"
 UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
 UA_MOB='Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'

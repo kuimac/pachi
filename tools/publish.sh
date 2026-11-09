@@ -23,9 +23,14 @@ if git diff --quiet && git diff --cached --quiet && [[ -z "$(git ls-files --othe
 fi
 
 git add -A
-# 秘密ファイルが混ざっていないか最低限確認
-if git diff --cached --name-only | grep -E '(^|/)\.env$|\.pem$|credentials\.json$' >/dev/null; then
-  echo "refusing to commit secret-like files" >&2
+# 秘密・個人情報が混ざっていないか最低限確認（公開リポジトリ）
+if git diff --cached --name-only | grep -E '(^|/)\.env$|\.pem$|credentials\.json$|(^|/)プレイ履歴\.local\.md$|\.local\.md$|\.ck$' >/dev/null; then
+  echo "refusing to commit secret/personal-like files" >&2
+  git reset >/dev/null
+  exit 1
+fi
+if git diff --cached -U0 | grep -E '^\+.*(/Users/[^/]+/|@gmail\.com|JSESSIONID)' >/dev/null; then
+  echo "refusing to commit personal path / email / session cookie content" >&2
   git reset >/dev/null
   exit 1
 fi

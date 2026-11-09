@@ -24,6 +24,241 @@ PROB_COLS = {"大当り確率", "初当り確率", "チャンス中大当り確�
 COUNT_COLS = {"スタート", "累計スタート", "大当り回数", "初当り回数", "最高出玉", "回数"}
 CHART_COLS = ["スタート", "大当り回数", "初当り回数", "最高出玉"]
 MEASURE_CSV = "実測回転"
+PLAY_FILE = ROOT / "プレイ履歴.md"
+_PLAY_CACHE: list[dict[str, object]] | None = None
+
+
+def _parse_money(value: str | None) -> int | None:
+    if value is None:
+        return None
+    text = str(value).strip().replace(",", "").replace("円", "").replace("発", "")
+    text = text.replace("＋", "+").replace("−", "-").replace("—", "").replace("－", "-")
+    if not text or text in {"-", "—", "--"}:
+        return None
+    if re.fullmatch(r"[+-]?\d+", text):
+        return int(text)
+    return None
+
+
+def resolve_unit_machine(store: str, number: str) -> str:
+    """店舗フォルダから台番号の機種名を探す。"""
+    root = ROOT / store
+    if not root.is_dir():
+        return ""
+    for machine_dir in sorted(root.iterdir()):
+        if machine_dir.is_dir() and (machine_dir / number).is_dir():
+            return machine_dir.name
+    return ""
+
+
+def _play_from_row(cells: list[str]) -> dict[str, object] | None:
+    if len(cells) < 3:
+        return None
+    day = cells[0].strip()
+    if not DATE_RE.fullmatch(day):
+        return None
+    store = cells[1].strip()
+    number = cells[2].strip()
+    machine = cells[3].strip() if len(cells) > 3 else ""
+    invest = _parse_money(cells[4] if len(cells) > 4 else None)
+    balls = _parse_money(cells[5] if len(cells) > 5 else None)
+    cashout = _parse_money(cells[6] if len(cells) > 6 else None)
+    profit = _parse_money(cells[7] if len(cells) > 7 else None)
+    note = cells[8].strip() if len(cells) > 8 else ""
+    if not machine and store and number:
+        machine = resolve_unit_machine(store, number)
+    if not store or not number:
+        return None
+    return {
+        "date": day,
+        "store": store,
+        "number": number,
+        "machine": machine,
+        "invest": invest,
+        "balls": balls,
+        "cashout": cashout,
+        "profit": profit,
+        "note": note,
+        "source": "プレイ履歴",
+    }
+
+
+def _parse_result_line(day: str, store: str, line: str) -> dict[str, object] | None:
+    """『1265: 投資20,500 → 7,000発 → 換金26,250 → +5,750円』形式。"""
+    text = re.sub(r"[*_`]", "", line).strip()
+    if not text:
+        return None
+    match = re.match(r"^(\d+)\s*[:：]\s*(.+)$", text)
+    if not match:
+        return None
+    number = match.group(1)
+    body = match.group(2)
+    invest = None
+    balls = None
+    cashout = None
+    profit = None
+    m = re.search(r"投資\s*([+\-−＋]?\d[\d,]*)", body)
+    if m:
+        invest = _parse_money(m.group(1))
+    m = re.search(r"([+\-−＋]?\d[\d,]*)\s*発", body)
+    if m:
+        balls = _parse_money(m.group(1))
+    m = re.search(r"換金\s*([+\-−＋]?\d[\d,]*)", body)
+    if m:
+        cashout = _parse_money(m.group(1))
+    m = re.search(r"([+\-−＋]\d[\d,]*)\s*円", body)
+    if m:
+        profit = _parse_money(m.group(1))
+    if profit is None:
+        m = re.search(r"(→|⇒)\s*([+\-−＋]\d[\d,]*)", body)
+        if m:
+            profit = _parse_money(m.group(2))
+    machine = resolve_unit_machine(store, number)
+    return {
+        "date": day,
+        "store": store,
+        "number": number,
+        "machine": machine,
+        "invest": invest,
+        "balls": balls,
+        "cashout": cashout,
+        "profit": profit,
+        "note": "朝の結果",
+        "source": "朝の結果",
+    }
+
+
+def _plays_from_morning_results() -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+    for day_dir in sorted(ROOT.iterdir()):
+        if not day_dir.is_dir() or not DATE_RE.fullmatch(day_dir.name):
+            continue
+        day = day_dir.name
+        for store_dir in sorted(day_dir.iterdir()):
+            if not store_dir.is_dir():
+                continue
+            store = store_dir.name
+            for path in sorted(store_dir.glob("*.md")):
+                text = path.read_text(encoding="utf-8")
+                if "## 朝の結果" not in text:
+                    continue
+                section = text.split("## 朝の結果", 1)[1]
+                section = re.split(r"\n##\s+", section, maxsplit=1)[0]
+                for raw in section.splitlines():
+                    line = raw.strip()
+                    if not line or line.startswith("#") or line.startswith("|"):
+                        continue
+                    parsed = _parse_result_line(day, store, line)
+                    if parsed:
+                        records.append(parsed)
+    return records
+
+
+def load_play_records() -> list[dict[str, object]]:
+    """プレイ履歴.md と分析MDの『朝の結果』をまとめる。"""
+    global _PLAY_CACHE
+    if _PLAY_CACHE is not None:
+        return _PLAY_CACHE
+    records: list[dict[str, object]] = []
+    if PLAY_FILE.exists():
+        for line in PLAY_FILE.read_text(encoding="utf-8").splitlines():
+            if not line.strip().startswith("|"):
+                continue
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if not cells or cells[0] in {"日付", "---"} or cells[0].startswith("-"):
+                continue
+            if all(set(cell) <= {"-", "—", " "} for cell in cells):
+                continue
+            parsed = _play_from_row(cells)
+            if parsed:
+                records.append(parsed)
+    records.extend(_plays_from_morning_results())
+
+    deduped: dict[tuple[str, str, str], dict[str, object]] = {}
+    for row in records:
+        key = (str(row["date"]), str(row["store"]), str(row["number"]))
+        prev = deduped.get(key)
+        if prev is None:
+            deduped[key] = row
+            continue
+        # 収支がある方・機種名がある方を優先してマージ
+        merged = dict(prev)
+        for field in ("machine", "note", "source"):
+            if not merged.get(field) and row.get(field):
+                merged[field] = row[field]
+        for field in ("invest", "balls", "cashout", "profit"):
+            if merged.get(field) is None and row.get(field) is not None:
+                merged[field] = row[field]
+            elif row.get("source") == "プレイ履歴" and row.get(field) is not None:
+                merged[field] = row[field]
+        if row.get("source") == "プレイ履歴":
+            if row.get("machine"):
+                merged["machine"] = row["machine"]
+            if row.get("note"):
+                merged["note"] = row["note"]
+        deduped[key] = merged
+
+    ordered = sorted(
+        deduped.values(),
+        key=lambda row: (str(row["date"]), str(row["store"]), str(row["number"])),
+        reverse=True,
+    )
+    _PLAY_CACHE = ordered
+    return ordered
+
+
+def play_summary_by_unit(store: str | None = None) -> dict[tuple[str, str], dict[str, object]]:
+    """(store, number) → 最終プレイ要約。"""
+    summary: dict[tuple[str, str], dict[str, object]] = {}
+    for row in load_play_records():
+        key = (str(row["store"]), str(row["number"]))
+        if store and key[0] != store:
+            continue
+        prev = summary.get(key)
+        if prev is None or str(row["date"]) > str(prev["date"]):
+            summary[key] = row
+    return summary
+
+
+def play_summary_by_machine() -> dict[str, dict[str, object]]:
+    """site_name(機種) → 最終プレイ要約。"""
+    summary: dict[str, dict[str, object]] = {}
+    for row in load_play_records():
+        machine = str(row.get("machine") or "")
+        if not machine:
+            continue
+        key = site_name(machine)
+        prev = summary.get(key)
+        if prev is None or str(row["date"]) > str(prev["date"]):
+            summary[key] = row
+        # 全角コロン差も拾う
+        alt = site_name(machine.replace("：", ":").replace(":", "："))
+        if alt != key:
+            prev_alt = summary.get(alt)
+            if prev_alt is None or str(row["date"]) > str(prev_alt["date"]):
+                summary[alt] = row
+    return summary
+
+
+def play_badge_html(last_date: str, *, compact: bool = False) -> str:
+    label = fmt_date(last_date)
+    text = f"打った · {label}" if not compact else f"打った {label}"
+    return f'<span class="play-badge" title="最終プレイ {escape(label)}">{escape(text)}</span>'
+
+
+def play_tag_html(last_date: str) -> str:
+    label = fmt_date(last_date)
+    return (
+        f'<span class="tag tag-played" title="最終プレイ {escape(label)}">'
+        f"打った · 最終 {escape(label)}</span>"
+    )
+
+
+def fmt_signed_yen(value: int | None) -> str:
+    if value is None:
+        return "—"
+    sign = "+" if value > 0 else ""
+    return f"{sign}{value:,}円"
 
 
 def latest_measure(folder: Path) -> dict[str, str] | None:
@@ -452,7 +687,11 @@ def store_info_html(store: str, from_file: Path, stores_page: Path | None = None
     map_html = ""
     map_files = store_floor_map_files(store)
     map_link = profile.get("フロアマップ", "").strip()
-    if map_files or map_link:
+    updated = profile.get("フロアマップ更新日", "").strip()
+    updated_note = (
+        f'<p class="calc-note">フロアマップ更新日: {escape(updated)}</p>' if updated else ""
+    )
+    if map_files:
         figs = []
         for path in map_files:
             dest_img = OUT / "店舗" / store / path.name
@@ -471,16 +710,20 @@ def store_info_html(store: str, from_file: Path, stores_page: Path | None = None
                 f'<p class="calc-note"><a href="{escape(map_link, quote=True)}" '
                 'rel="noopener" target="_blank">P-WORLD スマフロ（拡大・台検索）</a></p>'
             )
-        updated = profile.get("フロアマップ更新日", "").strip()
-        updated_note = (
-            f'<p class="calc-note">フロアマップ更新日: {escape(updated)}</p>' if updated else ""
-        )
         map_html = (
             '<div class="floor-map-grid">'
             f'{"".join(figs)}'
             "</div>"
             f"{updated_note}{link_note}"
         )
+    elif map_link.startswith("http"):
+        map_html = (
+            f'<p class="calc-note"><a href="{escape(map_link, quote=True)}" '
+            'rel="noopener" target="_blank">P-WORLD スマフロ（拡大・台検索）</a></p>'
+            f"{updated_note}"
+        )
+    elif map_link:
+        map_html = f'<p class="calc-note">フロアマップ: {escape(map_link)}</p>'
     return (
         '<section class="block spec"><h2>店舗情報</h2>'
         f'<div class="table-wrap"><table>{"".join(rows)}</table></div>'
@@ -1904,6 +2147,7 @@ def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False
         ("ツール", OUT / "index.html", "#tools"),
         ("店舗", OUT / "index.html", "#stores"),
         ("日付", OUT / "index.html", "#dates"),
+        ("結果", OUT / "index.html", "#plays"),
         ("攻略", OUT / "index.html", "#guide"),
         ("スペック", OUT / "index.html", "#spec"),
     ]
@@ -2381,7 +2625,10 @@ def build_unit_page(
 def machine_sections_html(
     dest: Path,
     machines: list[tuple[str, Path | None, Path | None, list[tuple[str, Path, dict[str, str]]]]],
+    store: str | None = None,
 ) -> str:
+    plays = play_summary_by_unit(store) if store else play_summary_by_unit()
+    machine_plays = play_summary_by_machine()
     blocks = []
     for index, (name, guide, spec, units) in enumerate(machines):
         links = []
@@ -2389,6 +2636,10 @@ def machine_sections_html(
             links.append(f'<a href="{href(dest, guide)}">攻略</a>')
         if spec:
             links.append(f'<a href="{href(dest, spec)}">スペック</a>')
+        machine_play = machine_plays.get(site_name(name))
+        machine_badge = ""
+        if machine_play:
+            machine_badge = " " + play_badge_html(str(machine_play["date"]))
         chips = []
         for number, page, latest in units:
             start = fmt_cell("スタート", latest.get("スタート", ""))
@@ -2405,16 +2656,32 @@ def machine_sections_html(
                 rate_lines.append(
                     f"<small>実測/250玉 {escape(measure)}</small>"
                 )
+            unit_play = None
+            if store:
+                unit_play = plays.get((store, number))
+            else:
+                # 店舗不明時は台番号一致の最新
+                for (play_store, play_number), row in plays.items():
+                    if play_number == number:
+                        if unit_play is None or str(row["date"]) > str(unit_play["date"]):
+                            unit_play = row
+            played_class = " played" if unit_play else ""
+            badge = play_badge_html(str(unit_play["date"]), compact=True) if unit_play else ""
+            find_extra = f" 打った {fmt_date(str(unit_play['date']))}" if unit_play else ""
             chips.append(
-                f'<a class="unit" data-find="{escape(number)}" href="{href(dest, page)}">'
-                f"<strong>{escape(number)}</strong>"
+                f'<a class="unit{played_class}" data-find="{escape(number + find_extra)}" '
+                f'href="{href(dest, page)}">'
+                f"<strong>{escape(number)}</strong>{badge}"
                 f"<small>スタート {escape(start)} · 大当り {escape(wins)}</small>"
                 f"<small>最高出玉 {escape(best)}</small>"
                 f"{''.join(rate_lines)}</a>"
             )
+        find_machine = aliases_for(name)
+        if machine_play:
+            find_machine += f" 打った {fmt_date(str(machine_play['date']))}"
         blocks.append(
-            f'<section class="machine" id="m{index}" data-find="{escape(aliases_for(name))}">'
-            f"<h3>{escape(name)} <span class=\"sublinks\">{''.join(links)}</span></h3>"
+            f'<section class="machine" id="m{index}" data-find="{escape(find_machine)}">'
+            f"<h3>{escape(name)}{machine_badge} <span class=\"sublinks\">{''.join(links)}</span></h3>"
             f'<div class="units">{"".join(chips)}</div></section>'
         )
     return "".join(blocks)
@@ -2517,7 +2784,7 @@ def build_store_page(
     )
     times = [when for *_, when in detail_pages if when != date_label(day)]
     intro_when = times[0] if times else date_label(day)
-    machine_html = machine_sections_html(dest, machines)
+    machine_html = machine_sections_html(dest, machines, store=store)
     info = store_info_html(store, dest, OUT / "店舗一覧.html")
     hub = OUT / "店舗" / store / "index.html"
     hub_link = (
@@ -2584,7 +2851,7 @@ def build_store_hub(
         '<p class="intro">この店の分析を新しい順に並べています。</p>'
     )
     info = store_info_html(store, dest, OUT / "店舗一覧.html")
-    machine_html = machine_sections_html(dest, machines) if machines else ""
+    machine_html = machine_sections_html(dest, machines, store=store) if machines else ""
     machines_block = (
         f'<p class="section-label" id="machines">台データ</p>'
         f'<div id="machine-list">{machine_html}</div>'
@@ -2791,6 +3058,8 @@ def build_index(
         '<button type="button" data-kind="その他" aria-pressed="false">その他</button>'
     )
 
+    machine_plays = play_summary_by_machine()
+
     guide_html = []
     for title, summary, page, spec, units in guide_cards:
         extra_bits = []
@@ -2800,12 +3069,17 @@ def build_index(
             extra_bits.append(f"<span>台 {len(units)}</span>")
         extra = f'<div class="links">{"".join(extra_bits)}</div>' if extra_bits else ""
         kind = machine_letter_kind(title)
-        find = f"{aliases_for(title)} {kind} " + " ".join(num for num, _ in units)
+        play = machine_plays.get(site_name(title))
+        play_find = f" 打った {fmt_date(str(play['date']))}" if play else ""
+        find = f"{aliases_for(title)} {kind} " + " ".join(num for num, _ in units) + play_find
+        play_tag = play_tag_html(str(play["date"])) if play else ""
+        play_tags = f'<div class="tags">{play_tag}</div>' if play_tag else ""
         guide_html.append(
             f'<div class="card" data-kind="{escape(kind)}" data-find="{escape(find)}">'
             f'<a href="{href(dest, page)}"><span class="kicker">攻略 · {escape(kind)}</span>'
             f"<h3>{escape(title)}</h3>"
-            f"<p>{escape(summary)}</p></a>{extra}</div>"
+            f"<p>{escape(summary)}</p>"
+            f"{play_tags}</a>{extra}</div>"
         )
 
     spec_html = []
@@ -2814,16 +3088,20 @@ def build_index(
         if guide:
             extra = f'<div class="links"><a href="{href(dest, guide)}">攻略</a></div>'
         kind = machine_letter_kind(title)
+        play = machine_plays.get(site_name(title))
+        play_find = f" 打った {fmt_date(str(play['date']))}" if play else ""
         find = " ".join(
             [aliases_for(title), kind, *tags, *(num for num, _ in units)]
-        )
+        ) + play_find
+        tag_bits = list(tags)
         tags_html = (
             '<div class="tags">'
             + "".join(
-                f'<span class="{tag_class(tag)}">{escape(tag)}</span>' for tag in tags
+                f'<span class="{tag_class(tag)}">{escape(tag)}</span>' for tag in tag_bits
             )
+            + (play_tag_html(str(play["date"])) if play else "")
             + "</div>"
-            if tags
+            if tag_bits or play
             else ""
         )
         spec_html.append(
@@ -2833,6 +3111,60 @@ def build_index(
             f"<p>{escape(summary)}</p>{tags_html}</a>{extra}</div>"
         )
 
+    result_rows = [row for row in load_play_records() if row.get("profit") is not None]
+    play_html = []
+    for row in result_rows:
+        profit = row.get("profit")
+        assert isinstance(profit, int)
+        cls = " win" if profit > 0 else " lose" if profit < 0 else ""
+        day = str(row["date"])
+        store = str(row["store"])
+        number = str(row["number"])
+        machine = str(row.get("machine") or "")
+        note = str(row.get("note") or "")
+        invest = row.get("invest")
+        balls = row.get("balls")
+        cashout = row.get("cashout")
+        detail_bits = []
+        if isinstance(invest, int):
+            detail_bits.append(f"投資 {invest:,}円")
+        if isinstance(balls, int):
+            detail_bits.append(f"出玉 {balls:,}発")
+        if isinstance(cashout, int):
+            detail_bits.append(f"換金 {cashout:,}円")
+        detail = " · ".join(detail_bits)
+        find = f"{day} {store} {number} {machine} {note} {fmt_signed_yen(profit)}"
+        store_page = OUT / "店舗" / store / "index.html"
+        unit_page = None
+        if machine and (ROOT / store / machine / number).is_dir():
+            unit_page = OUT / store / site_name(machine) / number / "index.html"
+        href_target = unit_page if unit_page else store_page
+        play_html.append(
+            f'<a class="card play-result{cls}" data-find="{escape(find)}" '
+            f'href="{href(dest, href_target)}">'
+            f'<span class="kicker">{escape(date_label(day))} · {escape(store)}</span>'
+            f"<h3>{escape(number)} {escape(machine)}</h3>"
+            f'<p class="play-profit">{escape(fmt_signed_yen(profit))}</p>'
+            f"<p>{escape(detail)}</p>"
+            f"{f'<p>{escape(note)}</p>' if note else ''}</a>"
+        )
+    plays_block = ""
+    if play_html:
+        plays_block = (
+            '<div class="section-head" id="plays">'
+            '<p class="section-label">プレイ結果</p>'
+            "</div>"
+            f'<div class="doc-grid" id="play-cards">{"".join(play_html)}</div>'
+        )
+    elif load_play_records():
+        plays_block = (
+            '<div class="section-head" id="plays">'
+            '<p class="section-label">プレイ結果</p>'
+            "</div>"
+            '<p class="intro">打った台の記録はあるが、収支が入っている行はまだありません。'
+            '<code>プレイ履歴.md</code> に収支を追記するとここに出ます。</p>'
+        )
+
     explain_block = ""
     search_pairs = [
         ("stores", "store-cards"),
@@ -2840,6 +3172,8 @@ def build_index(
         ("guide", "guide-cards"),
         ("spec", "spec-cards"),
     ]
+    if play_html:
+        search_pairs.insert(2, ("plays", "play-cards"))
     if explain_html:
         explain_block = (
             '<p class="section-label" id="explain">解説</p>'
@@ -2876,6 +3210,7 @@ def build_index(
         *( [("解説", "#explain")] if explain_html else [] ),
         *( [("店舗", "#stores")] if store_html else [] ),
         ("分析日", "#dates"),
+        *( [("プレイ結果", "#plays")] if plays_block else [] ),
         ("攻略情報", "#guide"),
         ("機種スペック", "#spec"),
     ]
@@ -2906,6 +3241,7 @@ def build_index(
   </div>
 </div>
 <div class="doc-grid" id="date-cards">{''.join(date_html)}</div>
+{plays_block}
 <div class="section-head" id="guide">
   <p class="section-label">攻略情報</p>
   <div class="sort-bar" id="guide-kind" role="group" aria-label="攻略情報の絞り込み">
@@ -2931,6 +3267,8 @@ def build_index(
 
 
 def main() -> None:
+    global _PLAY_CACHE
+    _PLAY_CACHE = None
     for path in OUT.rglob("*.html"):
         path.unlink()
 
@@ -3198,9 +3536,10 @@ def main() -> None:
         by_store.setdefault(store, []).append((day, summary, page, when))
 
     store_hub_cards: list[tuple[str, str, Path, str, str, int]] = []
-    for store, analyses in sorted(by_store.items(), key=lambda item: item[0]):
-        # analyses already mixed; sort inside hub. Summary = latest day blurb.
-        latest = max(analyses, key=lambda row: row[0])
+    # 店舗一覧の全店＋分析がある店（フロアマップのみの店も含む）
+    hub_stores = list(dict.fromkeys([*load_store_names(), *sorted(by_store)]))
+    for store in hub_stores:
+        analyses = by_store.get(store, [])
         hub = build_store_hub(
             store,
             analyses,
@@ -3208,10 +3547,15 @@ def main() -> None:
             regions.get(store) or guess_region(store),
             stations.get(store) or guess_station(store),
         )
+        if analyses:
+            latest = max(analyses, key=lambda row: row[0])
+            summary = f"最新 {date_label(latest[0])} · {latest[1]}"
+        else:
+            summary = "店舗情報・フロアマップ"
         store_hub_cards.append(
             (
                 store,
-                f"最新 {date_label(latest[0])} · {latest[1]}",
+                summary,
                 hub,
                 regions.get(store) or guess_region(store),
                 stations.get(store) or guess_station(store),

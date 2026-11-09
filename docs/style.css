@@ -359,8 +359,41 @@ table.dense td:last-child {
   color: inherit;
 }
 .unit:hover { border-color: var(--accent); }
+.unit.played {
+  border-color: #c4a574;
+  background: #fbf6ee;
+}
 .unit strong { display: block; font-size: 1.08rem; letter-spacing: 0.02em; }
 .unit small { display: block; color: var(--muted); font-size: 0.75rem; line-height: 1.45; }
+.play-badge {
+  display: inline-block;
+  margin: 4px 0 2px;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  color: #7a5530;
+  border: 1px solid #d4b98a;
+  border-radius: 6px;
+  padding: 1px 7px;
+  background: #f8f0e4;
+  font-weight: 600;
+}
+.machine h3 .play-badge { margin-left: 6px; vertical-align: middle; }
+.card .tag-played {
+  color: #7a5530;
+  border-color: #d4b98a;
+  background: #f8f0e4;
+  font-weight: 600;
+}
+.play-result .play-profit {
+  margin: 4px 0 2px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.play-result.win .play-profit { color: #1b6b43; }
+.play-result.lose .play-profit { color: #a3262c; }
 
 .stats {
   display: grid;

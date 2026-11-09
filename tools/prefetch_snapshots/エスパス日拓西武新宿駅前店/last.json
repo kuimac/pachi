@@ -1,0 +1,16 @@
+{
+  "ok": false,
+  "paywall": false,
+  "period": "",
+  "rate_labels": [],
+  "row_count": 0,
+  "columns_ok": false,
+  "units": [],
+  "machines": [],
+  "error": "http=403 HTTP Error 403: Forbidden",
+  "fetched_at": "2026-11-10 03:42",
+  "url": "https://m.site777.jp/f/D0900.do?pmc=13031023&clc=01",
+  "http_code": 403,
+  "store": "エスパス日拓西武新宿駅前店",
+  "day": "2026-11-10"
+}

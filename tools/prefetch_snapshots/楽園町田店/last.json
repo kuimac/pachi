@@ -1,0 +1,16 @@
+{
+  "ok": false,
+  "paywall": false,
+  "period": "",
+  "rate_labels": [],
+  "row_count": 0,
+  "columns_ok": false,
+  "units": [],
+  "machines": [],
+  "error": "http=403 HTTP Error 403: Forbidden",
+  "fetched_at": "2026-11-10 03:42",
+  "url": "https://www.d-deltanet.com/pc/D0301.do?pmc=22021031&clc=01&urt=400&pan=1",
+  "http_code": 403,
+  "store": "楽園町田店",
+  "day": "2026-11-10"
+}

@@ -852,6 +852,9 @@ ALIASES = (
     ("なのは", ("なのは",)),
     ("ドラム", ("電音部",)),
     ("アズール", ("アズレン", "アズレン2")),
+    ("わんわん", ("わんわん",)),
+    ("華牌", ("華牌RR", "華牌")),
+    ("牙狼12", ("牙狼12", "牙狼")),
 )
 
 DETAIL_ORDER = [
@@ -2605,6 +2608,180 @@ def link_units(fragment: str, mapping: dict[str, str]) -> str:
     return "".join(output)
 
 
+_MACHINE_PREFIX_RE = re.compile(
+    r"^(?:デカスタ|デジハネ|スマパチ|PF\.?|PA|P|eF\.?|e)\s*",
+    re.IGNORECASE,
+)
+
+
+_GENERIC_MACHINE_LABELS = {
+    "climax",
+    "クライマックス",
+    "紅丸",
+    "紅丸ver",
+    "ver",
+    "light",
+    "premium",
+}
+
+
+def strip_machine_prefix(name: str) -> str:
+    text = unicodedata.normalize("NFKC", name or "").strip()
+    for _ in range(3):
+        nxt = re.sub(r"^【[^】]*】\s*", "", text)
+        nxt = _MACHINE_PREFIX_RE.sub("", nxt).strip()
+        if nxt == text:
+            break
+        text = nxt
+    return text or (name or "").strip()
+
+
+def canon_machine_key(name: str) -> str:
+    """全角コロン等を吸収した機種キー。"""
+    text = unicodedata.normalize("NFKC", name or "")
+    text = re.sub(r"[:：]", ":", text)
+    return site_name(text).casefold()
+
+
+def machine_label_variants(name: str) -> list[str]:
+    """分析文中に出やすい機種名バリエーション。"""
+    raw = unicodedata.normalize("NFKC", name or "").strip()
+    raw = re.sub(r"[:：]", ":", raw)
+    if not raw:
+        return []
+    labels: list[str] = []
+
+    def add(value: str) -> None:
+        text = unicodedata.normalize("NFKC", value or "").strip()
+        text = re.sub(r"[:：]", ":", text)
+        if not text or len(text) < 2:
+            return
+        if text.casefold() in _GENERIC_MACHINE_LABELS:
+            return
+        labels.append(text)
+
+    def drip(value: str) -> None:
+        add(value)
+        no_ver = re.sub(r"\s*ver\.?$", "", value, flags=re.I).strip()
+        add(no_ver)
+        for src, dst in (("クライマックス", "CLIMAX"), ("CLIMAX", "クライマックス")):
+            if src in value:
+                add(value.replace(src, dst))
+                add(no_ver.replace(src, dst))
+        for prefix in ("機動戦士", "フィーバー", "ドラムde", "AC"):
+            if value.startswith(prefix):
+                rest = value[len(prefix) :].strip()
+                add(rest)
+                rest_nv = no_ver[len(prefix) :].strip() if no_ver.startswith(prefix) else no_ver
+                add(rest_nv)
+                for src, dst in (("クライマックス", "CLIMAX"), ("CLIMAX", "クライマックス")):
+                    if src in rest:
+                        add(rest.replace(src, dst))
+                    if src in rest_nv:
+                        add(rest_nv.replace(src, dst))
+
+    add(raw)
+    add(site_name(raw))
+    stripped = strip_machine_prefix(raw)
+    drip(stripped)
+    # 先頭の短い識別子（牙狼12 / 華牌RR）
+    head = re.match(r"^([^\s・/／]{2,}?\d+[A-Za-z]*)", stripped)
+    if head:
+        add(head.group(1))
+    head2 = re.match(r"^([^\s・/／]*[A-Za-z]{2,}[^\s・/／]*)", stripped)
+    if head2 and len(head2.group(1)) >= 4:
+        add(head2.group(1))
+    # 末尾の特徴語（鬼がかり2）。汎用語だけの尾は捨てる
+    tail = re.search(r"([^\s・/／]{2,}(?:\d+)?(?:ver)?)$", stripped, re.I)
+    if tail and tail.group(1).casefold() not in _GENERIC_MACHINE_LABELS:
+        piece = tail.group(1)
+        if len(piece) >= 4 or re.search(r"\d", piece):
+            drip(piece)
+    # 「の〜」を落とした短縮（ひきこまり吸血姫）
+    if "の" in stripped and len(stripped) >= 6:
+        add(stripped.rsplit("の", 1)[0])
+    # エイリアス＋識別子（リコリコM3 など）
+    token = re.search(r"(M\d+|\d{2,}|4500|319)", stripped)
+    suffix = token.group(1) if token else ""
+    for key, extras in ALIASES:
+        if key not in raw and not any(extra in raw for extra in extras):
+            continue
+        for extra in extras:
+            add(extra)
+            if suffix and not extra.endswith(suffix):
+                add(f"{extra}{suffix}")
+                add(f"{extra} {suffix}")
+    return list(dict.fromkeys(labels))
+
+
+def build_machine_guide_map(dest: Path, guides: dict[str, Path]) -> dict[str, str]:
+    """表示名 → 攻略HTML相対パス。同一機種の表記ゆれは1本にまとめる。"""
+    # canon → 代表ガイドキー
+    canon_to_key: dict[str, str] = {}
+    for key in guides:
+        canon = canon_machine_key(key)
+        # 短いキー（ASCII寄り）や先勝ちで安定化
+        prev = canon_to_key.get(canon)
+        if prev is None or len(key) < len(prev):
+            canon_to_key[canon] = key
+
+    owners: dict[str, set[str]] = {}
+    guide_dir = ROOT / "攻略情報"
+    for md in sorted(guide_dir.glob("*.md")) if guide_dir.is_dir() else []:
+        key = site_name(md.stem)
+        if key not in guides:
+            continue
+        rep = canon_to_key.get(canon_machine_key(key), key)
+        title = title_of(md.read_text(encoding="utf-8"), md.stem)
+        for label in machine_label_variants(md.stem) + machine_label_variants(title):
+            owners.setdefault(label, set()).add(rep)
+
+    mapping: dict[str, str] = {}
+    for label, keys in owners.items():
+        if len(keys) != 1:
+            continue
+        key = next(iter(keys))
+        mapping[label] = href(dest, guides[key])
+    return mapping
+
+
+def link_machines(fragment: str, mapping: dict[str, str]) -> str:
+    """本文中の機種名を攻略情報へリンクする。"""
+    if not mapping:
+        return fragment
+    # 長い名前優先。既存の a タグ内は触らない。
+    labels = sorted(mapping, key=len, reverse=True)
+    escaped = [re.escape(label) for label in labels if len(label) >= 2]
+    if not escaped:
+        return fragment
+    pattern = re.compile("(" + "|".join(escaped) + ")")
+    parts = re.split(r"(<[^>]+>)", fragment)
+    in_anchor = 0
+    output = []
+
+    def replace(match: re.Match[str]) -> str:
+        label = match.group(1)
+        return (
+            f'<a class="machine-link" href="{escape(mapping[label], quote=True)}">'
+            f"{escape(label)}</a>"
+        )
+
+    for part in parts:
+        if part.startswith("</a"):
+            in_anchor = max(0, in_anchor - 1)
+            output.append(part)
+        elif part.startswith("<a ") or part.startswith("<a>"):
+            in_anchor += 1
+            output.append(part)
+        elif part.startswith("<"):
+            output.append(part)
+        elif in_anchor:
+            output.append(part)
+        else:
+            output.append(pattern.sub(replace, part))
+    return "".join(output)
+
+
 def wrap_sections(fragment: str) -> tuple[str, str]:
     parts = re.split(r"(<h2>.*?</h2>)", fragment, flags=re.S)
     toc_items = []
@@ -2830,6 +3007,8 @@ def build_markdown(
 
     fragment = re.sub(r"<table>.*?</table>", mark_dense, fragment, flags=re.S)
     fragment = decorate_tables(fragment)
+    # 機種名→攻略を先に（長い名前優先）。台番号リンクはその後。
+    fragment = link_machines(fragment, build_machine_guide_map(dest, guides))
     fragment = link_units(fragment, unit_map)
     extra = related_links(dest, source.stem, guides, specs, units_by_machine)
     source_rel = escape(str(source.relative_to(ROOT)))
@@ -2877,8 +3056,13 @@ def build_csv_page(
         links.append(f'<a href="{href(dest, guide)}">攻略</a>')
     if spec:
         links.append(f'<a href="{href(dest, spec)}">スペック</a>')
+    machine_html = (
+        f'<a class="machine-link" href="{href(dest, guide)}">{escape(machine)}</a>'
+        if guide
+        else escape(machine)
+    )
     body = (
-        f'<p class="kicker">{escape(machine)}</p><h1>{escape(number)} {escape(source.stem)}</h1>'
+        f'<p class="kicker">{machine_html}</p><h1>{escape(number)} {escape(source.stem)}</h1>'
         f'<div class="related">{"".join(links)}</div>{charts}{data}'
         f'<p class="foot">元ファイル <code>{escape(str(source.relative_to(ROOT)))}</code></p>'
     )
@@ -2960,8 +3144,13 @@ def build_unit_page(
         pager.append(f'<a href="{href(dest, next_page)}">{escape(next_num)} →</a>')
     pager.append("</div>")
     sources = "".join(f'<a href="{href(dest, page)}">{escape(name)}</a>' for name, page in csv_pages)
+    machine_html = (
+        f'<a class="machine-link" href="{href(dest, guide)}">{escape(machine)}</a>'
+        if guide
+        else escape(machine)
+    )
     body = (
-        f'<p class="kicker">{escape(machine)}</p><h1>台 {escape(number)}</h1>'
+        f'<p class="kicker">{machine_html}</p><h1>台 {escape(number)}</h1>'
         f"<p>{span}</p>"
         f'<div class="related">{"".join(links)}</div>'
         f'<div class="stats">{"".join(stats)}</div>'
@@ -3040,9 +3229,15 @@ def machine_sections_html(
         find_machine = aliases_for(name)
         if machine_play:
             find_machine += f" 打った {fmt_date(str(machine_play['date']))}"
+        if guide:
+            name_html = (
+                f'<a class="machine-link" href="{href(dest, guide)}">{escape(name)}</a>'
+            )
+        else:
+            name_html = escape(name)
         blocks.append(
             f'<section class="machine" id="m{index}" data-find="{escape(find_machine)}">'
-            f"<h3>{escape(name)}{machine_badge} <span class=\"sublinks\">{''.join(links)}</span></h3>"
+            f"<h3>{name_html}{machine_badge} <span class=\"sublinks\">{''.join(links)}</span></h3>"
             f'<div class="units">{"".join(chips)}</div></section>'
         )
     return "".join(blocks)

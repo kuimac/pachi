@@ -370,6 +370,16 @@ table.dense td:last-child {
 .sublinks { font-weight: 500; font-size: 0.82rem; margin-left: 8px; }
 .sublinks a { margin-right: 8px; }
 
+a.machine-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 2px;
+}
+a.machine-link:hover { color: var(--accent); text-decoration-color: var(--accent); }
+a.unit-link { color: var(--accent); text-decoration: none; }
+a.unit-link:hover { text-decoration: underline; }
+
 .units { display: flex; flex-wrap: wrap; gap: 8px; }
 .unit {
   display: block;

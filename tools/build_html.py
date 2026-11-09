@@ -2553,6 +2553,170 @@ def build_tools_page(
     return dest
 
 
+def _child_page_label(name: str) -> str:
+    return name.replace("_", " ").strip() or name
+
+
+_SKIP_SIDE_NAMES = {
+    ".git",
+    ".github",
+    ".cursor",
+    ".cache",
+    ".venv",
+    "__pycache__",
+    "docs",
+    "templates",
+    "tools",
+    "店舗画像",
+    "node_modules",
+}
+_TOP_SIDE_DIRS = {
+    "tools",
+    "店舗",
+    "プレイ結果",
+    "攻略情報",
+    "機種スペック",
+    "解説",
+}
+_TOP_SIDE_FILES = {
+    "店舗一覧.html",
+}
+
+
+def discover_child_pages(from_file: Path) -> list[tuple[str, Path]]:
+    """現在ページの下層（同じフォルダの子ページ／サブディレクトリ）を列挙する。"""
+    out_dir = from_file.parent
+    items: list[tuple[str, Path]] = []
+    seen: set[Path] = set()
+
+    def add(label: str, path: Path) -> None:
+        if ".local" in path.name or path.name.startswith("."):
+            return
+        try:
+            key = path.resolve()
+        except OSError:
+            key = path
+        if key in seen or path == from_file:
+            return
+        seen.add(key)
+        items.append((_child_page_label(label), path))
+
+    try:
+        rel = from_file.relative_to(OUT)
+    except ValueError:
+        rel = None
+
+    # トップは公開セクションだけ（リポジトリ直下の md/tools は出さない）
+    if from_file == OUT / "index.html":
+        for name in sorted(_TOP_SIDE_FILES):
+            path = OUT / name
+            if path.exists():
+                add(path.stem, path)
+        for sub in sorted(OUT.iterdir()):
+            if not sub.is_dir() or sub.name.startswith("."):
+                continue
+            if sub.name in _TOP_SIDE_DIRS or DATE_RE.fullmatch(sub.name):
+                if (sub / "index.html").exists():
+                    add(sub.name, sub / "index.html")
+        return items
+
+    src_dir: Path | None = None
+    if rel is not None and len(rel.parts) > 1:
+        src_dir = ROOT.joinpath(*rel.parts[:-1])
+        # docs 配下の専用ツリー（店舗/・攻略情報/ など）は OUT 側だけ見る
+        if rel.parts[0] in {"店舗", "tools", "プレイ結果", "攻略情報", "機種スペック", "解説"}:
+            src_dir = None
+
+    if from_file.name == "index.html":
+        if src_dir and src_dir.is_dir():
+            for md in sorted(src_dir.glob("*.md")):
+                if ".local" in md.name:
+                    continue
+                add(md.stem, out_dir / f"{md.stem}.html")
+            for csv_path in sorted(src_dir.glob("*.csv")):
+                if csv_path.stem in {"実測回転"}:
+                    continue
+                add(csv_path.stem, out_dir / f"{csv_path.stem}.html")
+            for sub in sorted(src_dir.iterdir()):
+                if not sub.is_dir() or sub.name.startswith(".") or sub.name in _SKIP_SIDE_NAMES:
+                    continue
+                if any(sub.iterdir()):
+                    add(sub.name, out_dir / sub.name / "index.html")
+        if out_dir.is_dir():
+            for html in sorted(out_dir.glob("*.html")):
+                if html.name == "index.html" or ".local" in html.name:
+                    continue
+                add(html.stem, html)
+            for sub in sorted(out_dir.iterdir()):
+                if sub.is_dir() and sub.name not in _SKIP_SIDE_NAMES and (sub / "index.html").exists():
+                    add(sub.name, sub / "index.html")
+    else:
+        # foo.html → foo/ 以下が下層
+        child_dir = out_dir / from_file.stem
+        src_child = (src_dir / from_file.stem) if src_dir else None
+        if src_child and src_child.is_dir():
+            for md in sorted(src_child.glob("*.md")):
+                if ".local" in md.name:
+                    continue
+                add(md.stem, child_dir / f"{md.stem}.html")
+            for csv_path in sorted(src_child.glob("*.csv")):
+                if csv_path.stem in {"実測回転"}:
+                    continue
+                add(csv_path.stem, child_dir / f"{csv_path.stem}.html")
+            for sub in sorted(src_child.iterdir()):
+                if sub.is_dir() and any(sub.iterdir()):
+                    add(sub.name, child_dir / sub.name / "index.html")
+        if child_dir.is_dir():
+            for html in sorted(child_dir.glob("*.html")):
+                label = child_dir.name if html.name == "index.html" else html.stem
+                add(label, html)
+            for sub in sorted(child_dir.iterdir()):
+                if sub.is_dir() and (sub / "index.html").exists():
+                    add(sub.name, sub / "index.html")
+
+    # 多すぎる一覧（攻略・スペック全件など）はサイドに出さない
+    if len(items) > 80:
+        return []
+    return items
+
+
+def sidemenu_html(from_file: Path) -> str:
+    children = discover_child_pages(from_file)
+    if not children:
+        return ""
+    links = []
+    for label, path in children:
+        current = ""
+        try:
+            if path.resolve() == from_file.resolve():
+                current = ' aria-current="page" class="is-current"'
+        except OSError:
+            pass
+        links.append(f'<a href="{href(from_file, path)}"{current}>{escape(label)}</a>')
+    parent_link = ""
+    if from_file.name != "index.html":
+        parent = from_file.parent / "index.html"
+        parent_link = (
+            f'<a class="side-parent" href="{href(from_file, parent)}">上の階層</a>'
+        )
+    elif from_file.parent != OUT:
+        up_dir = from_file.parent.parent
+        target = OUT / "index.html" if up_dir == OUT else up_dir / "index.html"
+        parent_link = (
+            f'<a class="side-parent" href="{href(from_file, target)}">上の階層</a>'
+        )
+    return f"""
+<aside class="sidemenu" aria-label="下層ページ">
+  <details open>
+    <summary>下層ページ</summary>
+    <nav>
+      {parent_link}
+      {"".join(links)}
+    </nav>
+  </details>
+</aside>"""
+
+
 def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False) -> str:
     items = [
         ("Top", OUT / "index.html", ""),
@@ -2570,6 +2734,23 @@ def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False
     css = href(from_file, OUT / "style.css")
     wide_class = " wide" if wide else ""
     crumb_html = f'\n  <p class="crumb">{crumb}</p>' if crumb.strip() else ""
+    side = sidemenu_html(from_file)
+    has_side = " has-sidemenu" if side else ""
+    main_inner = f"""{crumb_html}
+  {body}"""
+    if side:
+        layout = f"""
+<div class="layout">
+{side}
+<main>
+{main_inner}
+</main>
+</div>"""
+    else:
+        layout = f"""
+<main>
+{main_inner}
+</main>"""
     return f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -2578,14 +2759,12 @@ def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False
 <title>{escape(title)}</title>
 <link rel="stylesheet" href="{css}">
 </head>
-<body class="{wide_class.strip()}">
+<body class="{wide_class.strip()}{has_side}">
 <header class="top">
   <a class="brand" href="{href(from_file, OUT / 'index.html')}">wop</a>
   <nav>{nav}</nav>
 </header>
-<main>{crumb_html}
-  {body}
-</main>
+{layout}
 {table_sort_script()}
 </body>
 </html>

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 580" role="img">
+<title>P GO!GO!郷 豪遊の5 盤面ガイド</title>
+<desc>ニューギン系 · 電チュー / 右打ちランプ / 液晶表示</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#9c2f1a"/>
+  </marker>
+  <style>
+    .bg { fill:#f3efe6; }
+    .frame { fill:#fffdf8; stroke:#241e1a; stroke-width:3; }
+    .glass { fill:#e8f0f5; stroke:#7a8a94; stroke-width:2; }
+    .part { fill:#f6efe4; stroke:#241e1a; stroke-width:2; }
+    .hot { fill:#ffe8a8; stroke:#9c2f1a; stroke-width:2.5; }
+    .lamp { fill:#ff5a3c; stroke:#7a1808; stroke-width:2; }
+    .yaku { fill:#dfe9f2; stroke:#3a5566; stroke-width:2; stroke-dasharray:6 4; }
+    .title { font:700 16px "Hiragino Sans","Yu Gothic",sans-serif; fill:#1e1a16; }
+    .sub { font:12px "Hiragino Sans","Yu Gothic",sans-serif; fill:#6f675e; }
+    .call { font:700 13px "Hiragino Sans","Yu Gothic",sans-serif; fill:#9c2f1a; }
+    .note { font:12px "Hiragino Sans","Yu Gothic",sans-serif; fill:#2f5d50; }
+    .line { stroke:#9c2f1a; stroke-width:1.7; fill:none; marker-end:url(#arrow); }
+    .muted { fill:#cfc5b6; stroke:#8a7f70; stroke-width:1.5; }
+  </style>
+</defs>
+<rect class="bg" width="760" height="580" rx="16"/>
+<text class="title" x="24" y="36">P GO!GO!郷 豪遊の5</text>
+<text class="sub" x="24" y="56">ニューギン系 · 電チュー / 右打ちランプ / 液晶表示</text>
+<!-- cabinet -->
+<rect class="frame" x="110" y="78" width="360" height="450" rx="24"/>
+
+<rect class="glass" x="140" y="110" width="300" height="170" rx="10"/>
+<text class="sub" x="290" y="180" text-anchor="middle">液晶</text>
+<rect x="230" y="220" width="120" height="28" rx="6" fill="#9c2f1a"/>
+<text x="290" y="239" text-anchor="middle" fill="#fffdf8" font-size="13" font-weight="700">右打ち</text>
+<circle class="muted" cx="160" cy="320" r="10"/>
+<circle class="muted" cx="190" cy="300" r="8"/>
+<circle class="muted" cx="420" cy="300" r="8"/>
+<circle class="muted" cx="440" cy="330" r="10"/>
+<text class="sub" x="290" y="340" text-anchor="middle">演出ランプ（多数）</text>
+<rect class="hot" x="340" y="370" width="70" height="40" rx="8"/>
+<circle class="lamp" cx="420" cy="410" r="9"/>
+<rect class="part" x="230" y="440" width="70" height="28" rx="6"/>
+<path class="line" d="M520 234 L360 234"/>
+<text class="call" x="532" y="238">液晶の右打ち</text>
+<path class="line" d="M520 320 L450 320"/>
+<text class="call" x="532" y="324">演出ランプ≠右打ち</text>
+<path class="line" d="M520 410 L430 410"/>
+<text class="call" x="532" y="414">右打ちランプ</text>
+</svg>

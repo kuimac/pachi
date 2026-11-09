@@ -2658,6 +2658,9 @@ def machine_label_variants(name: str) -> list[str]:
             return
         if text.casefold() in _GENERIC_MACHINE_LABELS:
             return
+        # 年号・台番号・数値だけの誤リンクを防ぐ
+        if re.fullmatch(r"\d{2,4}", text):
+            return
         labels.append(text)
 
     def drip(value: str) -> None:

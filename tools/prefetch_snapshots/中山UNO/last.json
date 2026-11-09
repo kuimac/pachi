@@ -1,7 +1,7 @@
 {
   "ok": true,
   "paywall": false,
-  "period": "11/09(月)＞",
+  "period": "11/09(月)",
   "rate_labels": [
     "4パチ"
   ],
@@ -91,7 +91,7 @@
     "eフィーバーブルーロック",
     "e真・北斗無双 第5章 ドデカSTART"
   ],
-  "fetched_at": "2026-11-09 14:37",
+  "fetched_at": "2026-11-09 14:38",
   "url": "https://m.site777.jp/f/D0900.do?pmc=13003016&clc=01",
   "http_code": 200,
   "store": "中山UNO",

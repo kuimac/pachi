@@ -37,8 +37,13 @@ def latest_measure(folder: Path) -> dict[str, str] | None:
     return rows[-1]
 
 
+def _truthy_flag(value: str | None) -> bool:
+    text = (value or "").strip().lower()
+    return text in {"1", "y", "yes", "true", "はい", "移転後", "移転あり"}
+
+
 def measure_rate_text(row: dict[str, str] | None) -> str:
-    """表示用の『回転/250玉』。換算列が無ければ回転数をそのまま。"""
+    """表示用の『回転/250玉』数値のみ。換算列が無ければ回転数から計算。"""
     if not row:
         return "—"
     for key in ("回転/250玉", "換算250玉あたり", "回転per250"):
@@ -57,19 +62,65 @@ def measure_rate_text(row: dict[str, str] | None) -> str:
     return spins or "—"
 
 
+def measure_confidence_label(balls: str | None) -> str:
+    """玉数ごとの信頼度ラベル。250玉は低く、1000玉は中、それ以上は高め。"""
+    raw = (balls or "").strip()
+    if not raw:
+        return ""
+    try:
+        count = float(raw)
+    except ValueError:
+        return ""
+    if count <= 250:
+        return "信頼低"
+    if count < 1000:
+        return "信頼低〜中"
+    if count < 2000:
+        return "信頼中"
+    return "信頼高"
+
+
+def measure_display_text(row: dict[str, str] | None) -> str:
+    """分析表・チップ用。例: 19（250玉・信頼低・移転後）。"""
+    if not row:
+        return "—"
+    rate = measure_rate_text(row)
+    if rate == "—":
+        return "—"
+    balls = (row.get("玉数") or "").strip()
+    tags: list[str] = []
+    if balls:
+        try:
+            ball_text = f"{float(balls):.0f}" if float(balls).is_integer() else balls
+        except ValueError:
+            ball_text = balls
+        tags.append(f"{ball_text}玉")
+    confidence = measure_confidence_label(balls)
+    if confidence:
+        tags.append(confidence)
+    relocated = row.get("移転後") or row.get("移転") or ""
+    if _truthy_flag(relocated):
+        tags.append("移転後")
+    elif (relocated or "").strip().lower() in {"0", "n", "no", "false", "いいえ", "移転前", "移転なし"}:
+        tags.append("移転前/非移転")
+    if not tags:
+        return rate
+    return f"{rate}（{'・'.join(tags)}）"
+
+
 def measure_stat_html(folder: Path) -> str:
     """台ページ用。最後の実測があれば stat を1つ返す。"""
     row = latest_measure(folder)
     if not row:
         return ""
-    rate = measure_rate_text(row)
+    display = measure_display_text(row)
     when = (row.get("日時") or row.get("日付") or "").strip()
     label = "最後の回転/250玉"
     if when:
         label = f"最後の回転/250玉（{when}）"
     return (
         f'<div class="stat"><span>{escape(label)}</span>'
-        f"<b>{escape(rate)}</b></div>"
+        f"<b>{escape(display)}</b></div>"
     )
 
 KINDS = [
@@ -2859,7 +2910,7 @@ def main() -> None:
                         latest = dict(rows[-1])
                 measure = latest_measure(folder)
                 if measure:
-                    latest["実測/250"] = measure_rate_text(measure)
+                    latest["実測/250"] = measure_display_text(measure)
                     when = (measure.get("日時") or measure.get("日付") or "").strip()
                     if when:
                         latest["実測日時"] = when

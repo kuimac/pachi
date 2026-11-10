@@ -4418,6 +4418,27 @@ def main() -> None:
 
         build_date_page(day, day_store_cards)
 
+        # 日付直下の MD（店舗横断メモ・README・取得結果など）も HTML 化する。
+        # サイドメニューはソースの *.md をリンクするが、従来は店舗フォルダ分しか書いていなかった。
+        day_root = ROOT / day
+        if day_root.is_dir():
+            for source in sorted(day_root.glob("*.md")):
+                if ".local" in source.name:
+                    continue
+                dest = OUT / day / f"{source.stem}.html"
+                build_markdown(
+                    source,
+                    dest,
+                    [
+                        ("Top", OUT / "index.html", ""),
+                        (date_label(day), OUT / day / "index.html", ""),
+                    ],
+                    unit_map_for(dest),
+                    guide_out,
+                    spec_out,
+                    all_units_by_machine,
+                )
+
     # トップは新しい分析日時順で店舗カードを出す（日付ページと同じ見た目）
     def _when_sort_key(item: tuple[str, str, str, Path, str]) -> str:
         day, _store, _summary, _page, when = item

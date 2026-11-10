@@ -1,0 +1,26 @@
+{
+  "楽園渋谷駅前店": {
+    "models_listed": 71,
+    "units_listed": 367,
+    "models_with_free_unit_csv": 20,
+    "units_in_free_csv": 233,
+    "csv_models": "楽園渋谷駅前店/設置機種_4パチ_2026-11-09.csv",
+    "collected_at": "2026-11-10 09:49"
+  },
+  "楽園渋谷道玄坂店": {
+    "models_listed": 49,
+    "units_listed": 224,
+    "models_with_free_unit_csv": 20,
+    "units_in_free_csv": 159,
+    "csv_models": "楽園渋谷道玄坂店/設置機種_4パチ_2026-11-09.csv",
+    "collected_at": "2026-11-10 09:49"
+  },
+  "エスパス日拓渋谷駅前新館": {
+    "models_listed": 40,
+    "units_listed": 418,
+    "models_with_free_unit_csv": 20,
+    "units_in_free_csv": 371,
+    "csv_models": "エスパス日拓渋谷駅前新館/設置機種_4パチ_2026-11-09.csv",
+    "collected_at": "2026-11-10 09:49"
+  }
+}

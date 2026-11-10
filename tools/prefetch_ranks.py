@@ -47,10 +47,33 @@ STORES: dict[str, dict[str, object]] = {
         "expected_rate_hint": "4パチ",
     },
     "楽園町田店": {
-        "kind": "deltanet_list",
-        "url": "https://www.d-deltanet.com/pc/D0301.do?pmc=22021031&clc=01&urt=400&pan=1",
+        # Site Seven 無料出玉ランキング（全台）。DeltaNet 機種一覧は fetch_deltanet_tables.py。
+        "kind": "site777_rank",
+        "url": "https://m.site777.jp/f/D0900.do?pmc=22021031&clc=01",
+        "models_url": "https://m.site777.jp/f/D0300.do?pmc=22021031&clc=01&urt=400&pan=1",
         "csv_dir": "楽園町田店",
-        "expected_rate_hint": "4円",
+        "expected_rate_hint": "4パチ",
+    },
+    "楽園渋谷駅前店": {
+        "kind": "site777_rank",
+        "url": "https://m.site777.jp/f/D0900.do?pmc=22021029&clc=01",
+        "models_url": "https://m.site777.jp/f/D0300.do?pmc=22021029&clc=01&urt=400&pan=1",
+        "csv_dir": "楽園渋谷駅前店",
+        "expected_rate_hint": "4パチ",
+    },
+    "楽園渋谷道玄坂店": {
+        "kind": "site777_rank",
+        "url": "https://m.site777.jp/f/D0900.do?pmc=22021014&clc=01",
+        "models_url": "https://m.site777.jp/f/D0300.do?pmc=22021014&clc=01&urt=400&pan=1",
+        "csv_dir": "楽園渋谷道玄坂店",
+        "expected_rate_hint": "4パチ",
+    },
+    "エスパス日拓渋谷駅前新館": {
+        "kind": "site777_rank",
+        "url": "https://m.site777.jp/f/D0900.do?pmc=13031030&clc=01",
+        "models_url": "https://m.site777.jp/f/D0300.do?pmc=13031030&clc=01&urt=400&pan=1",
+        "csv_dir": "エスパス日拓渋谷駅前新館",
+        "expected_rate_hint": "4パチ",
     },
 }
 

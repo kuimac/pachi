@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>楽園町田店 生データ取得結果</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body class="">
+<header class="top">
+  <a class="brand" href="../../index.html">wop</a>
+  <nav><a href="../../index.html">Top</a><a href="../../index.html#tools">ツール</a><a href="../../index.html#stores">店舗</a><a href="../../index.html#dates">日付</a><a href="../../%E3%83%97%E3%83%AC%E3%82%A4%E7%B5%90%E6%9E%9C/index.html">結果</a><a href="../../index.html#guide">攻略</a><a href="../../index.html#spec">スペック</a></nav>
+</header>
+
+<main>
+
+  <p class="crumb"><a href="../../index.html">Top</a> / <a href="../../index.html#stores">店舗</a> / <a href="../../%E5%BA%97%E8%88%97/%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/index.html">楽園町田店</a> / <a href="../index.html">11月10日</a> / <a href="index.html">楽園町田店</a></p>
+  <h1>楽園町田店 生データ取得結果</h1><nav class="toc"><a href="#s1">取得内容</a><a href="#s2">件数</a><a href="#s3">保存パス</a><a href="#s4">列（全台データ）</a><a href="#s5">DeltaNet 詳細表（追加）</a></nav><div class="lede"><p>取得日時: 2026-11-10 02:26（Asia/Tokyo）</p>
+<p>集計対象日: 2026-11-09</p>
+</div>
+<section class="block plain"><h2 id="s1">取得内容</h2>
+<ul>
+<li>Site Seven 無料 D3210 全台表 + 出玉ランキング上位。DeltaNet D2501 詳細は台フォルダ CSV。</li>
+<li>おすすめ・狙い目・判定は書いていない（生データのみ）</li>
+</ul>
+</section>
+<section class="block plain"><h2 id="s2">件数</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>項目</th>
+<th>値</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全台データ台数</td>
+<td class="num">324</td>
+</tr>
+<tr>
+<td>機種数</td>
+<td class="num">61</td>
+</tr>
+<tr>
+<td>出玉ランキング行数</td>
+<td class="num">30</td>
+</tr>
+</tbody>
+</table></div>
+</section>
+<section class="block plain"><h2 id="s3">保存パス</h2>
+<ul>
+<li><code>楽園町田店/全台データ_2026-11-09.csv</code></li>
+<li><code>楽園町田店/出玉ランキング_2026-11-09.csv</code></li>
+<li><code>2026-11-10/楽園町田店/全台データ_2026-11-09.csv</code></li>
+<li><code>2026-11-10/楽園町田店/出玉ランキング_2026-11-09.csv</code></li>
+</ul>
+</section>
+<section class="block plain"><h2 id="s4">列（全台データ）</h2>
+<p>日付 / 台番号 / 機種 / 累計スタート / 大当り回数 / 初当り回数 / 最高出玉 / レート / mdc / 設置台数</p>
+<p>※無料枠のため累計スタートが <code>--</code> の台あり。</p>
+</section>
+<section class="block plain"><h2 id="s5">DeltaNet 詳細表（追加）</h2>
+<ul>
+<li>取得成否: <code>True</code></li>
+<li>データ更新時間: <code>2026/11/09 23:20</code></li>
+<li>機種数: <code>60</code></li>
+<li>台フォルダ反映台数: <code>323</code></li>
+<li>保存: <code>楽園町田店/&lt;機種名&gt;/&lt;台番号&gt;/</code>（スタート・累計スタート・大当り回数・初当り回数・最高出玉・確率系・大当り一覧.csv）</li>
+<li>エラー件数: <code>0</code></li>
+</ul></section><p class="foot">元ファイル <code>2026-11-10/楽園町田店/生データ取得結果.md</code></p>
+</main>
+
+<script>
+(() => {
+  const parse = (text) => {
+    const raw = (text || '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw === '—' || raw === '-' || raw === '－') return { n: null, s: '' };
+    const cleaned = raw
+      .replace(/,/g, '')
+      .replace(/[＋]/g, '+')
+      .replace(/[−－]/g, '-')
+      .replace(/円(\/千円|\/朝)?$/u, '')
+      .replace(/%$/u, '')
+      .replace(/個$/u, '')
+      .replace(/回$/u, '')
+      .replace(/G$/iu, '');
+    if (/^[+-]?\d+(\.\d+)?$/.test(cleaned)) return { n: Number(cleaned), s: raw };
+    return { n: null, s: raw.toLowerCase() };
+  };
+  const cellText = (td) => (td ? td.innerText || td.textContent || '' : '');
+  document.querySelectorAll('table').forEach((table) => {
+    const headRow = table.tHead && table.tHead.rows[0];
+    const body = table.tBodies[0];
+    if (!headRow || !body || body.rows.length < 2) return;
+    table.classList.add('sortable');
+    [...headRow.cells].forEach((th, col) => {
+      if (th.colSpan > 1) return;
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      th.setAttribute('aria-sort', 'none');
+      const activate = () => {
+        const asc = th.dataset.sort !== 'asc';
+        [...headRow.cells].forEach((cell) => {
+          delete cell.dataset.sort;
+          cell.setAttribute('aria-sort', 'none');
+        });
+        th.dataset.sort = asc ? 'asc' : 'desc';
+        th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+        const rows = [...body.rows].map((row, index) => {
+          const value = parse(cellText(row.cells[col]));
+          return { row, index, value };
+        });
+        rows.sort((a, b) => {
+          const an = a.value.n;
+          const bn = b.value.n;
+          let cmp = 0;
+          if (an != null && bn != null) cmp = an - bn;
+          else if (an != null) cmp = -1;
+          else if (bn != null) cmp = 1;
+          else cmp = a.value.s.localeCompare(b.value.s, 'ja');
+          if (cmp === 0) cmp = a.index - b.index;
+          return asc ? cmp : -cmp;
+        });
+        rows.forEach(({ row }) => body.appendChild(row));
+      };
+      th.addEventListener('click', activate);
+      th.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

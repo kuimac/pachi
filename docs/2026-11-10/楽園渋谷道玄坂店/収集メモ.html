@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>楽園渋谷道玄坂店 収集メモ</title>
+<link rel="stylesheet" href="../../style.css">
+</head>
+<body class="">
+<header class="top">
+  <a class="brand" href="../../index.html">wop</a>
+  <nav><a href="../../index.html">Top</a><a href="../../index.html#tools">ツール</a><a href="../../index.html#stores">店舗</a><a href="../../index.html#dates">日付</a><a href="../../%E3%83%97%E3%83%AC%E3%82%A4%E7%B5%90%E6%9E%9C/index.html">結果</a><a href="../../index.html#guide">攻略</a><a href="../../index.html#spec">スペック</a></nav>
+</header>
+
+<main>
+
+  <p class="crumb"><a href="../../index.html">Top</a> / <a href="../../index.html#stores">店舗</a> / <a href="../../%E5%BA%97%E8%88%97/%E6%A5%BD%E5%9C%92%E6%B8%8B%E8%B0%B7%E9%81%93%E7%8E%84%E5%9D%82%E5%BA%97/index.html">楽園渋谷道玄坂店</a> / <a href="../index.html">11月10日</a> / <a href="index.html">楽園渋谷道玄坂店</a></p>
+  <h1>楽園渋谷道玄坂店 収集メモ</h1><nav class="toc"><a href="#s1">店舗</a><a href="#s2">取得結果（集計日 2026-11-09）</a></nav><div class="lede"><p>収集日時: 2026-11-10 09:54（Asia/Tokyo）</p>
+<p><strong>収集のみ。分析・狙い目・期待値は書かない。</strong></p>
+</div>
+<section class="block plain"><h2 id="s1">店舗</h2>
+<ul>
+<li>住所: 東京都渋谷区道玄坂2-6-16</li>
+<li>アクセス: ハチ公口徒歩約4分／井の頭線西口すぐ</li>
+<li>営業: 10:00〜22:45／朝抽選 09:<a class="unit-link" href="../../%E4%B8%AD%E5%B1%B1ZoRoN/e%20%E6%96%B0%E4%B8%96%E7%B4%80%E3%82%A8%E3%83%B4%E3%82%A1%E3%83%B3%E3%82%B2%E3%83%AA%E3%82%AA%E3%83%B3%20%EF%BD%9E%E3%81%AF%E3%81%98%E3%81%BE%E3%82%8A%E3%81%AE%E8%A8%98%E6%86%B6%EF%BD%9E/40/index.html">40</a>〜（500名締切案内あり）</li>
+<li>交換: 28玉（みんパチ）／貸出 100円/25玉</li>
+<li>台数: パチンコ約483 / スロット約392（P-WORLD）</li>
+<li>データ: Site Seven pmc=22021014／DeltaNet 同pmc／DMM <code>shops/tokyo/346</code></li>
+<li>フロアマップ: なし（P-WORLD未掲載）</li>
+</ul>
+<p>横断: <a href="../%E6%B8%8B%E8%B0%B7%E9%A7%85%E8%BF%91%E9%9A%A3/%E5%BA%97%E8%88%97%E6%83%85%E5%A0%B1.html">渋谷駅近隣 店舗情報</a></p>
+</section>
+<section class="block plain"><h2 id="s2">取得結果（集計日 2026-11-09）</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>ファイル</th>
+<th>内容</th>
+<th>行数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="設置機種_4パチ_2026-11-09.csv">設置機種_4パチ_2026-11-09.csv</a></td>
+<td>4パチ機種一覧</td>
+<td>49機種・設置合計224台</td>
+</tr>
+<tr>
+<td><a href="全台データ_2026-11-09.csv">全台データ_2026-11-09.csv</a></td>
+<td>台番号付き出玉表</td>
+<td>226行</td>
+</tr>
+<tr>
+<td><a href="出玉ランキング_2026-11-09.csv">出玉ランキング_2026-11-09.csv</a></td>
+<td>差玉上位</td>
+<td>30行</td>
+</tr>
+</tbody>
+</table></div>
+<p>取得元: Site Seven 無料（D0300／D3210／D0900）。途中509はリトライで回収。</p></section><p class="foot">元ファイル <code>2026-11-10/楽園渋谷道玄坂店/収集メモ.md</code></p>
+</main>
+
+<script>
+(() => {
+  const parse = (text) => {
+    const raw = (text || '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw === '—' || raw === '-' || raw === '－') return { n: null, s: '' };
+    const cleaned = raw
+      .replace(/,/g, '')
+      .replace(/[＋]/g, '+')
+      .replace(/[−－]/g, '-')
+      .replace(/円(\/千円|\/朝)?$/u, '')
+      .replace(/%$/u, '')
+      .replace(/個$/u, '')
+      .replace(/回$/u, '')
+      .replace(/G$/iu, '');
+    if (/^[+-]?\d+(\.\d+)?$/.test(cleaned)) return { n: Number(cleaned), s: raw };
+    return { n: null, s: raw.toLowerCase() };
+  };
+  const cellText = (td) => (td ? td.innerText || td.textContent || '' : '');
+  document.querySelectorAll('table').forEach((table) => {
+    const headRow = table.tHead && table.tHead.rows[0];
+    const body = table.tBodies[0];
+    if (!headRow || !body || body.rows.length < 2) return;
+    table.classList.add('sortable');
+    [...headRow.cells].forEach((th, col) => {
+      if (th.colSpan > 1) return;
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      th.setAttribute('aria-sort', 'none');
+      const activate = () => {
+        const asc = th.dataset.sort !== 'asc';
+        [...headRow.cells].forEach((cell) => {
+          delete cell.dataset.sort;
+          cell.setAttribute('aria-sort', 'none');
+        });
+        th.dataset.sort = asc ? 'asc' : 'desc';
+        th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+        const rows = [...body.rows].map((row, index) => {
+          const value = parse(cellText(row.cells[col]));
+          return { row, index, value };
+        });
+        rows.sort((a, b) => {
+          const an = a.value.n;
+          const bn = b.value.n;
+          let cmp = 0;
+          if (an != null && bn != null) cmp = an - bn;
+          else if (an != null) cmp = -1;
+          else if (bn != null) cmp = 1;
+          else cmp = a.value.s.localeCompare(b.value.s, 'ja');
+          if (cmp === 0) cmp = a.index - b.index;
+          return asc ? cmp : -cmp;
+        });
+        rows.forEach(({ row }) => body.appendChild(row));
+      };
+      th.addEventListener('click', activate);
+      th.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          activate();
+        }
+      });
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -3262,6 +3262,45 @@ def build_markdown(
     write(dest, page)
 
 
+def build_raw_csv_page(
+    source: Path,
+    dest: Path,
+    *,
+    store: str,
+    day: str,
+    store_page: Path | None = None,
+) -> None:
+    """日付フォルダ直下の生データ CSV（出玉ランキング・全台データなど）を表にする。"""
+    fieldnames, rows = read_csv(source)
+    title = source.stem
+    note = ""
+    if any(name in PROB_COLS for name in fieldnames):
+        note = "<p>確率は分母です。772 なら 1/772 と表示しています。</p>"
+    data = note + table_html(fieldnames, rows)
+    hub = OUT / "店舗" / store / "index.html"
+    links = []
+    if store_page and store_page.exists():
+        links.append(f'<a href="{href(dest, store_page)}">この日の店舗</a>')
+    if hub.exists():
+        links.append(f'<a href="{href(dest, hub)}">店舗ページ</a>')
+    related = f'<div class="related">{"".join(links)}</div>' if links else ""
+    body = (
+        f'<p class="kicker">{escape(store)} · {escape(date_label(day))}</p>'
+        f"<h1>{escape(title)}</h1>{related}{data}"
+        f'<p class="foot">元ファイル <code>{escape(str(source.relative_to(ROOT)))}</code></p>'
+    )
+    trail = [
+        ("Top", OUT / "index.html", ""),
+        ("店舗", OUT / "index.html", "#stores"),
+        (store, hub if hub.exists() else None, ""),
+        (date_label(day), OUT / day / "index.html", ""),
+        (store, store_page, ""),
+        (title, None),
+    ]
+    page = shell(dest, f"{title} / {store}", crumb(dest, trail), body, wide=True)
+    write(dest, page)
+
+
 def build_csv_page(
     source: Path,
     dest: Path,
@@ -4408,6 +4447,17 @@ def main() -> None:
             store_page = build_store_page(
                 day, store, detail_pages, store_machine_index.get(store, [])
             )
+            for csv_path in sorted(folder.glob("*.csv")):
+                if csv_path.stem in {"実測回転"} or ".local" in csv_path.name:
+                    continue
+                csv_dest = OUT / day / store / f"{csv_path.stem}.html"
+                build_raw_csv_page(
+                    csv_path,
+                    csv_dest,
+                    store=store,
+                    day=day,
+                    store_page=store_page,
+                )
             summary = " · ".join(label for label, *_ in detail_pages) or "詳細なし"
             store_when = next(
                 (when for *_, when in detail_pages if when != date_label(day)),

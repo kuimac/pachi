@@ -9,9 +9,11 @@ import os
 import re
 import shutil
 import unicodedata
+from datetime import datetime
 from html import escape, unescape
 from pathlib import Path
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import markdown
 
@@ -864,6 +866,8 @@ DETAIL_ORDER = [
     "期待値が高い台.md",
     "台分析.md",
 ]
+# 当日フォルダを追っかけ更新する判断。過去日に残るスナップショットもこれ。
+JUDGMENT_STEMS = {Path(name).stem for name in DETAIL_ORDER} | {"分析不可"}
 
 
 def load_store_names() -> list[str]:
@@ -1156,6 +1160,15 @@ def date_label(iso: str) -> str:
     if not match:
         return iso
     return f"{int(match.group(2))}月{int(match.group(3))}日"
+
+
+def today_iso() -> str:
+    return datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y-%m-%d")
+
+
+def judgment_labels(summary: str) -> list[str]:
+    """日次カードの要約から判断MD名だけを残す。"""
+    return [part.strip() for part in summary.split("·") if part.strip() in JUDGMENT_STEMS]
 
 
 def analysis_datetime(text: str) -> str | None:
@@ -3616,6 +3629,11 @@ const applyCatalogFilter = () => {{
     const nameFilter = (box.dataset.nameFilter || '').trim();
     // 種類・機種名フィルタだけではバーを残す（すべてに戻せなくなるため）
     label.hidden = !!query && !nameFilter && !any;
+    let note = label.nextElementSibling;
+    while (note && note.classList.contains('section-note')) {{
+      note.hidden = label.hidden;
+      note = note.nextElementSibling;
+    }}
   }});
   if (empty) empty.hidden = shown !== 0;
   if (typeof window.applyCardCollapse === 'function') window.applyCardCollapse();
@@ -3763,14 +3781,33 @@ def build_store_page(
     hub_link = (
         f'<p class="related"><a href="{href(dest, hub)}">この店の分析一覧</a></p>'
     )
+    today = today_iso()
+    has_judgment = any(label in JUDGMENT_STEMS for label, *_ in detail_pages)
+    if has_judgment and day < today:
+        detail_label = "この日の判断"
+        detail_note = "スナップショットです。この日付の判断を残しています。"
+        intro = f"{escape(date_label(day))}のスナップショットです。分析日時は {escape(intro_when)} です。"
+    elif has_judgment:
+        detail_label = "当日の判断"
+        detail_note = "この日付の判断は追っかけ更新します。再分析で上書きされます。"
+        intro = f"{escape(date_label(day))}の判断です。分析日時は {escape(intro_when)} で、この日付は追っかけ更新します。"
+    elif day < today:
+        detail_label = "この日の記録"
+        detail_note = "スナップショットです。この日付の記録を残しています。"
+        intro = f"{escape(date_label(day))}のスナップショットです。分析日時は {escape(intro_when)} です。"
+    else:
+        detail_label = "この日の記録"
+        detail_note = "判断はまだありません。収集データです。"
+        intro = f"{escape(date_label(day))}の収集データです。判断ができたあと同じ日付を追っかけ更新します。"
     body = f"""
 <h1>{escape(store)}</h1>
-<p class="intro">分析日時 {escape(intro_when)} の判断と、この店舗の台データです。</p>
+<p class="intro">{intro}</p>
 {hub_link}
 {info}
 <input class="search" id="q" type="search" placeholder="台番号、機種名（なのは、鬼がかり、1088）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
-<p class="section-label" id="details">判断</p>
+<p class="section-label" id="details">{detail_label}</p>
+<p class="section-note">{detail_note}</p>
 <div class="doc-grid" id="detail-cards">{detail_html}</div>
 <p class="section-label" id="machines">台データ</p>
 <div id="machine-list">{machine_html}</div>
@@ -3803,25 +3840,63 @@ def build_store_hub(
     machines: list[tuple[str, Path | None, Path | None, list[tuple[str, Path, dict[str, str]]]]],
     region: str = "",
     station: str = "",
+    judgments: list[tuple[str, list[tuple[str, str, Path, str]]]] | None = None,
 ) -> Path:
-    """店舗ごとの分析横断ページ。MD は日付→店舗のまま、ここは一覧用。"""
+    """店舗ページ。当日の判断は追っかけ、過去日はスナップショットとして分ける。"""
     dest = OUT / "店舗" / store / "index.html"
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    # 新しい日付順
-    ordered = sorted(analyses, key=lambda row: row[0], reverse=True)
-    cards = []
-    for day, summary, page, when in ordered:
-        cards.append(
-            f'<a class="card" data-find="{escape(day)} {escape(when)} {escape(summary)}" '
-            f'href="{href(dest, page)}">'
-            f'<span class="kicker">{escape(when)}</span>'
+    today = today_iso()
+    by_day = {day: (summary, page, when) for day, summary, page, when in analyses}
+    judgment_by_day = {day: pages for day, pages in (judgments or [])}
+    stem_order = {stem: index for index, stem in enumerate([*(Path(name).stem for name in DETAIL_ORDER), "分析不可"])}
+    live_days = sorted((day for day in by_day if day >= today), reverse=True)
+    past_days = sorted((day for day in by_day if day < today), reverse=True)
+
+    def day_card(day: str, prefix: str) -> str:
+        summary, page, when = by_day[day]
+        labels = judgment_labels(summary)
+        text = " · ".join(labels) if labels else summary
+        find = f"{day} {when} {summary}"
+        return (
+            f'<a class="card" data-find="{escape(find)}" href="{href(dest, page)}">'
+            f'<span class="kicker">{escape(prefix)} · {escape(when)}</span>'
             f"<h3>{escape(date_label(day))}</h3>"
-            f"<p>{escape(summary)}</p></a>"
+            f"<p>{escape(text)}</p></a>"
         )
+
+    today_cards: list[str] = []
+    for day in live_days:
+        pages = sorted(judgment_by_day.get(day, []), key=lambda row: stem_order.get(row[0], 99))
+        for label, summary, page, when in pages:
+            title = label if day == today else f"{date_label(day)} {label}"
+            find = f"{day} {label} {summary} {when}"
+            today_cards.append(
+                f'<a class="card" data-find="{escape(find)}" href="{href(dest, page)}">'
+                f'<span class="kicker">追っかけ · {escape(when)}</span>'
+                f"<h3>{escape(title)}</h3>"
+                f"<p>{escape(summary)}</p></a>"
+            )
+    if today_cards:
+        today_html = "".join(today_cards)
+    elif live_days:
+        _summary, page, _when = by_day[live_days[0]]
+        today_html = (
+            "<p>まだ当日の判断はありません。"
+            f'<a href="{href(dest, page)}">この日の収集データ</a>を開けます。</p>'
+        )
+    else:
+        today_html = "<p>まだ当日の判断はありません。</p>"
+
+    past_cards = [day_card(day, "スナップショット") for day in past_days]
+    past_html = "".join(past_cards) or "<p>過去の判断はまだありません。</p>"
+    past_class = "doc-grid card-collapse" if past_cards else "doc-grid"
+    collapse = card_collapse_script(5) if past_cards else ""
+
     place = " · ".join(part for part in (region, station) if part)
-    place_html = f'<p class="intro">{escape(place)}。日付ごとの判断へ進めます。</p>' if place else (
-        '<p class="intro">この店の分析を新しい順に並べています。</p>'
+    lead = "当日の判断は追っかけ更新します。日付が変わると、その日の判断はスナップショットとして残ります。"
+    place_html = (
+        f'<p class="intro">{escape(place)}。{lead}</p>' if place else f'<p class="intro">{lead}</p>'
     )
     info = store_info_html(store, dest, OUT / "店舗一覧.html")
     machine_html = machine_sections_html(dest, machines, store=store) if machines else ""
@@ -3831,7 +3906,7 @@ def build_store_hub(
         if machine_html
         else ""
     )
-    search_pairs = [("analyses", "analysis-cards")]
+    search_pairs = [("today", "today-cards"), ("past", "past-cards")]
     if machine_html:
         search_pairs.append(("machines", "machine-list"))
     body = f"""
@@ -3840,10 +3915,15 @@ def build_store_hub(
 {info}
 <input class="search" id="q" type="search" placeholder="日付、判断名、台番号、機種名" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
-<p class="section-label" id="analyses">分析（{len(ordered)}件）</p>
-<div class="doc-grid" id="analysis-cards">{''.join(cards) or '<p>まだ分析がありません。</p>'}</div>
+<p class="section-label" id="today">当日の判断（{len(today_cards)}件）</p>
+<p class="section-note">同じ日の再分析で、この欄を上書きします。</p>
+<div class="doc-grid" id="today-cards">{today_html}</div>
+<p class="section-label" id="past">過去の判断（{len(past_cards)}件）</p>
+<p class="section-note">日付を過ぎた判断です。開くとその日のスナップショットを確認できます。</p>
+<div class="{past_class}" id="past-cards" data-collapse-limit="5">{past_html}</div>
 {machines_block}
-<p class="foot">分析 MD の置き場は <code>YYYY-MM-DD/{escape(store)}/</code>。ここは店舗横断の一覧です。</p>
+<p class="foot">分析 MD の置き場は <code>YYYY-MM-DD/{escape(store)}/</code>。当日フォルダだけ追っかけ更新し、過去日はスナップショットです。</p>
+{collapse}
 {search_script(search_pairs)}
 """
     page = shell(
@@ -4412,6 +4492,7 @@ def main() -> None:
     for day, store, folder in day_stores:
         stores_by_day.setdefault(day, []).append((day, store, folder))
 
+    store_judgments: dict[str, list[tuple[str, list[tuple[str, str, Path, str]]]]] = {}
     index_store_cards: list[tuple[str, str, str, Path, str]] = []
     for day, entries in stores_by_day.items():
         day_store_cards: list[tuple[str, str, Path, str]] = []
@@ -4443,6 +4524,9 @@ def main() -> None:
                 text = source.read_text(encoding="utf-8")
                 when = analysis_time_label(text, day)
                 detail_pages.append((source.stem, blurb(text), dest, when))
+
+            judgment_pages = [row for row in detail_pages if row[0] in JUDGMENT_STEMS]
+            store_judgments.setdefault(store, []).append((day, judgment_pages))
 
             store_page = build_store_page(
                 day, store, detail_pages, store_machine_index.get(store, [])
@@ -4585,6 +4669,7 @@ def main() -> None:
             store_machine_index.get(store, []),
             regions.get(store) or guess_region(store),
             stations.get(store) or guess_station(store),
+            store_judgments.get(store, []),
         )
         if analyses:
             latest = max(analyses, key=lambda row: row[0])

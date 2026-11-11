@@ -1,0 +1,10 @@
+# 検索とインデックスから外す。Read はできるが、分析手順では開かない。
+# docs と CSV は publish / brief.py が使うので .cursorignore には置かない。
+docs/
+機種スペック/images/
+店舗画像/
+tools/prefetch_snapshots/
+tools/brief_snapshots/
+**/*.csv
+攻略情報/
+機種スペック/*.md

@@ -28,12 +28,13 @@
   <p class="crumb"><a href="../../index.html">Top</a> / <a href="../../index.html#stores">店舗</a> / <a href="../../%E5%BA%97%E8%88%97/%E6%96%B0%E5%AE%BF%E6%AD%8C%E8%88%9E%E4%BC%8E%E7%94%BA%E8%BF%91%E9%9A%A3/index.html">新宿歌舞伎町近隣</a> / <a href="../index.html">11月9日</a> / 新宿歌舞伎町近隣</p>
   
 <h1>新宿歌舞伎町近隣</h1>
-<p class="intro">分析日時 11月9日 10:38 の判断と、この店舗の台データです。</p>
+<p class="intro">11月9日のスナップショットです。分析日時は 11月9日 10:38 です。</p>
 <p class="related"><a href="../../%E5%BA%97%E8%88%97/%E6%96%B0%E5%AE%BF%E6%AD%8C%E8%88%9E%E4%BC%8E%E7%94%BA%E8%BF%91%E9%9A%A3/index.html">この店の分析一覧</a></p>
 
 <input class="search" id="q" type="search" placeholder="台番号、機種名（なのは、鬼がかり、1088）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
-<p class="section-label" id="details">判断</p>
+<p class="section-label" id="details">この日の記録</p>
+<p class="section-note">スナップショットです。この日付の記録を残しています。</p>
 <div class="doc-grid" id="detail-cards"><a class="card" data-find="店舗比較 対象4店（`店舗一覧.md`）。今日はどの店も旧イベント日条件に非該当（月9日・月曜）。換金はいずれも交換 28玉（約3.57円帯。町田楽園の3.75円より不利）。 データ制約: マルハン東宝・エスパス歌舞伎町の DMM「台データ」Webはアプリ誘導のみ。エスパス西武は Site Seven 出玉…" href="%E5%BA%97%E8%88%97%E6%AF%94%E8%BC%83.html"><span class="kicker">11月9日 10:38</span><h3>店舗比較</h3><p>対象4店（`店舗一覧.md`）。今日はどの店も旧イベント日条件に非該当（月9日・月曜）。換金はいずれも交換 28玉（約3.57円帯。町田楽園の3.75円より不利）。 データ制約: マルハン東宝・エスパス歌舞伎町の DMM「台データ」Webはアプリ誘導のみ。エスパス西武は Site Seven 出玉…</p></a></div>
 <p class="section-label" id="machines">台データ</p>
 <div id="machine-list"></div>
@@ -80,6 +81,11 @@ const applyCatalogFilter = () => {
     const nameFilter = (box.dataset.nameFilter || '').trim();
     // 種類・機種名フィルタだけではバーを残す（すべてに戻せなくなるため）
     label.hidden = !!query && !nameFilter && !any;
+    let note = label.nextElementSibling;
+    while (note && note.classList.contains('section-note')) {
+      note.hidden = label.hidden;
+      note = note.nextElementSibling;
+    }
   });
   if (empty) empty.hidden = shown !== 0;
   if (typeof window.applyCardCollapse === 'function') window.applyCardCollapse();

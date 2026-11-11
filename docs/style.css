@@ -487,6 +487,12 @@ a.unit-link:hover { text-decoration: underline; }
   margin: 22px 0 8px;
 }
 .section-head .section-label { margin: 0; }
+.section-note {
+  margin: -2px 0 10px;
+  max-width: 46rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
 .section-tools {
   display: flex;
   flex-wrap: wrap;

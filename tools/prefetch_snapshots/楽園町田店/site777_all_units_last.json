@@ -1,8 +1,8 @@
 {
   "store": "楽園町田店",
   "ok": true,
-  "fetched_at": "2026-11-12 09:50",
-  "day": "2026-11-12",
+  "fetched_at": "2026-11-13 07:40",
+  "day": "2026-11-13",
   "models": 61,
   "units": 223,
   "rate": "4パチ",
@@ -49,7 +49,7 @@
     "P大海物語４スペシャルSCA: http=509 HTTP Error 509: 509",
     "!-- var microad_blade_jp = microad_blade_jp || { 'params' : new Array(), 'complete_map' : new Object() }; (function() { var param = {'co_account_id' : '5066', 'group_id' : '', 'country_id' : '1', 'ver' : '2.1.0'}; microad_blade_jp.params.push(param); var src = (location.protocol == 'https:') ? 'https://d-cache.microad.jp/js/blade_track_jp.js' : 'http://d-cache.microad.jp/js/blade_track_jp.js'; var bs = document.createElement('script'); bs.type = 'text/javascript'; bs.async = true; bs.charset = 'utf-8'; bs.src = src; var s = document.getElementsByTagName('script'): http=509 HTTP Error 509: 509"
   ],
-  "csv": "楽園町田店/全台データ_2026-11-12.csv",
+  "csv": "楽園町田店/全台データ_2026-11-13.csv",
   "model_names": [
     "P Re：ゼロから始める異世界生活 season2 249Ver.",
     "PAスーパー海物語ＩＮ沖縄５ YBA",

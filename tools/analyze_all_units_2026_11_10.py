@@ -43,7 +43,7 @@ def norm(name: str) -> str:
 
 def load_guides() -> dict[str, dict]:
     guides: dict[str, dict] = {}
-    for folder in (ROOT / "攻略情報", ROOT / "機種スペック"):
+    for folder in (ROOT / "攻略情報",):
         for path in folder.glob("*.md"):
             text = path.read_text(encoding="utf-8", errors="ignore")
             meta: dict = {

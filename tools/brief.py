@@ -135,7 +135,7 @@ def _prefer_text(old: str, new: str) -> str:
 
 def load_guides() -> dict[str, dict]:
     guides: dict[str, dict] = {}
-    for folder in (ROOT / "機種スペック", ROOT / "攻略情報"):
+    for folder in (ROOT / "攻略情報",):
         if not folder.is_dir():
             continue
         for path in folder.glob("*.md"):

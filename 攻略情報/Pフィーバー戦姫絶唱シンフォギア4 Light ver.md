@@ -99,7 +99,7 @@ SANKYO公式はLT-Light ver.とLight ver.を分けて掲載している。Light 
 | アタッカー | 盤面下部中央寄り | ラウンド消化 |
 | 電サポ | （状態）時短・ST・RUSH中 | 部品ではない |
 
-![盤面ガイド](../機種スペック/images/boards/Pフィーバー戦姫絶唱シンフォギア4 Light ver.svg)
+![盤面ガイド](images/boards/Pフィーバー戦姫絶唱シンフォギア4 Light ver.svg)
 
 - カラフルな点灯だけで右打ちに切り替えない。
 - デカヘソ機は通常時の拾いが回転率に直結する。

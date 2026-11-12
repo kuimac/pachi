@@ -20,10 +20,9 @@
 | 店舗一覧 | https://kuimac.github.io/pachi/%E5%BA%97%E8%88%97%E4%B8%80%E8%A6%A7.html |
 | プレイ結果 | https://kuimac.github.io/pachi/%E3%83%97%E3%83%AC%E3%82%A4%E7%B5%90%E6%9E%9C/ |
 | 攻略情報 | https://kuimac.github.io/pachi/%E6%94%BB%E7%95%A5%E6%83%85%E5%A0%B1/ |
-| 機種スペック | https://kuimac.github.io/pachi/%E6%A9%9F%E7%A8%AE%E3%82%B9%E3%83%9A%E3%83%83%E3%82%AF/ |
 | 解説 | https://kuimac.github.io/pachi/%E8%A7%A3%E8%AA%AC/ |
 
-トップ内アンカー: [#tools](https://kuimac.github.io/pachi/#tools) / [#stores](https://kuimac.github.io/pachi/#stores) / [#dates](https://kuimac.github.io/pachi/#dates) / [#guide](https://kuimac.github.io/pachi/#guide) / [#spec](https://kuimac.github.io/pachi/#spec)
+トップ内アンカー: [#tools](https://kuimac.github.io/pachi/#tools) / [#stores](https://kuimac.github.io/pachi/#stores) / [#dates](https://kuimac.github.io/pachi/#dates) / [#guide](https://kuimac.github.io/pachi/#guide)
 
 ### 店舗ハブ（横断）
 

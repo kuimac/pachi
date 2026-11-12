@@ -1393,7 +1393,7 @@ def tag_class(tag: str) -> str:
 
 
 def spec_tags(text: str) -> list[str]:
-    """機種スペック MD からカード用の属性ラベルを抽出する。"""
+    """攻略 MD からカード用の属性ラベルを抽出する（互換用）。"""
     type_val = table_value(text, "タイプ")
     yu_val = table_value(text, "遊タイム")
     lt_val = table_value(text, "ラッキートリガー") or table_value(text, "LT")
@@ -2587,7 +2587,6 @@ _TOP_SIDE_DIRS = {
     "店舗",
     "プレイ結果",
     "攻略情報",
-    "機種スペック",
     "解説",
 }
 _TOP_SIDE_FILES = {
@@ -2640,7 +2639,7 @@ def discover_child_pages(from_file: Path) -> list[tuple[str, Path]]:
     if rel is not None and len(rel.parts) > 1:
         src_dir = ROOT.joinpath(*rel.parts[:-1])
         # docs 配下の専用ツリー（店舗/・攻略情報/ など）は OUT 側だけ見る
-        if rel.parts[0] in {"店舗", "tools", "プレイ結果", "攻略情報", "機種スペック", "解説"}:
+        if rel.parts[0] in {"店舗", "tools", "プレイ結果", "攻略情報", "解説"}:
             src_dir = None
 
     if from_file.name == "index.html":
@@ -2705,7 +2704,6 @@ def sidemenu_html(from_file: Path) -> str:
             ("店舗", "#stores"),
             ("解説", "#explain"),
             ("攻略情報", "#guide"),
-            ("機種スペック", "#spec"),
         ):
             links.append(f'<a href="{anchor}">{escape(label)}</a>')
     for label, path in children:
@@ -2750,7 +2748,6 @@ def shell(from_file: Path, title: str, crumb: str, body: str, wide: bool = False
         ("日付", OUT / "index.html", "#dates"),
         ("結果", OUT / "プレイ結果" / "index.html", ""),
         ("攻略", OUT / "index.html", "#guide"),
-        ("スペック", OUT / "index.html", "#spec"),
     ]
     nav = "".join(
         f'<a href="{href(from_file, path, anchor)}">{label}</a>'
@@ -3679,9 +3676,7 @@ def kind_filter_script() -> str:
     input.addEventListener('input', apply);
   };
   bindKind('guide-kind', 'guide-cards');
-  bindKind('spec-kind', 'spec-cards');
   bindName('guide-name', 'guide-cards');
-  bindName('spec-name', 'spec-cards');
 })();
 </script>
 """
@@ -4120,8 +4115,6 @@ def build_index(
     guide_html = []
     for title, summary, page, spec, units, rates in guide_cards:
         extra_bits = []
-        if spec:
-            extra_bits.append(f'<a href="{href(dest, spec)}">スペック</a>')
         if units:
             extra_bits.append(f"<span>台 {len(units)}</span>")
         extra = f'<div class="links">{"".join(extra_bits)}</div>' if extra_bits else ""
@@ -4224,7 +4217,6 @@ def build_index(
         ("stores", "store-cards"),
         ("dates", "date-cards"),
         ("guide", "guide-cards"),
-        ("spec", "spec-cards"),
     ]
     if play_html:
         search_pairs.insert(2, ("plays", "play-cards"))
@@ -4266,7 +4258,6 @@ def build_index(
         ("分析日", "#dates"),
         *( [("プレイ結果", href(dest, play_page))] if plays_block else [] ),
         ("攻略情報", "#guide"),
-        ("機種スペック", "#spec"),
     ]
     toc_nav = "".join(
         f'<a href="{anchor}">{escape(label)}</a>' for label, anchor in toc_links
@@ -4279,7 +4270,7 @@ def build_index(
     )
 
     body = f"""
-<p class="intro">店舗または日付から詳細へ進みます。攻略とスペックは店舗共通です。</p>
+<p class="intro">店舗または日付から詳細へ進みます。攻略（スペック込み）は店舗共通です。</p>
 {index_toc}
 {tools_block}
 <input class="search" id="q" type="search" placeholder="日付、店舗、地域、駅、機種名（町田駅、中山、なのは）" autocomplete="off">
@@ -4315,16 +4306,6 @@ def build_index(
   </div>
 </div>
 <div class="cards card-collapse" id="guide-cards" data-collapse-limit="3">{''.join(guide_html)}</div>
-<div class="section-head" id="spec">
-  <p class="section-label">機種スペック</p>
-  <div class="section-tools">
-    <input class="section-filter" id="spec-name" type="search" placeholder="機種名（なのは、鬼がかり）" autocomplete="off" aria-label="機種スペックを機種名で絞り込み">
-    <div class="sort-bar" id="spec-kind" role="group" aria-label="機種スペックの種類">
-      {kind_bar}
-    </div>
-  </div>
-</div>
-<div class="cards card-collapse" id="spec-cards" data-collapse-limit="3">{''.join(spec_html)}</div>
 <p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
 {card_collapse_script(3)}
 {search_script(search_pairs)}
@@ -4346,14 +4327,6 @@ def main() -> None:
     guide_sources = sorted((ROOT / "攻略情報").glob("*.md"))
     explain_dir = ROOT / "解説"
     explain_sources = sorted(explain_dir.glob("*.md")) if explain_dir.is_dir() else []
-    _spec_first = ("パチンコ用語一覧", "オカルトパチンコ動作一覧")
-    spec_sources = sorted(
-        (ROOT / "機種スペック").glob("*.md"),
-        key=lambda path: (
-            _spec_first.index(path.stem) if path.stem in _spec_first else len(_spec_first),
-            path.stem,
-        ),
-    )
     day_stores = discover_day_stores()
     store_names = load_store_names()
     for _, store, _ in day_stores:
@@ -4366,9 +4339,8 @@ def main() -> None:
     explain_out = {
         site_name(path.stem): OUT / "解説" / f"{site_name(path.stem)}.html" for path in explain_sources
     }
-    spec_out = {
-        site_name(path.stem): OUT / "機種スペック" / f"{site_name(path.stem)}.html" for path in spec_sources
-    }
+    # スペックは攻略へ統合済み。互換のため空マップを渡す。
+    spec_out: dict[str, Path] = {}
 
     # 台データ HTML は店舗直下に置き、日付をまたいで共有する。
     # パンくずは直近の分析日の店舗ページへ戻す。
@@ -4471,17 +4443,6 @@ def main() -> None:
             source,
             dest,
             [("Top", OUT / "index.html", ""), ("解説", OUT / "index.html", "#explain")],
-            unit_map_for(dest),
-            guide_out,
-            spec_out,
-            all_units_by_machine,
-        )
-    for source in spec_sources:
-        dest = spec_out[site_name(source.stem)]
-        build_markdown(
-            source,
-            dest,
-            [("Top", OUT / "index.html", ""), ("機種スペック", OUT / "index.html", "#spec")],
             unit_map_for(dest),
             guide_out,
             spec_out,
@@ -4612,40 +4573,20 @@ def main() -> None:
         key = site_name(source.stem)
         units = all_units_by_machine.get(key, [])
         rates = parse_guide_rates(text)
-        # 攻略に初当り分母が無いときはスペック側を補充
-        if rates.get("first_hit_den") is None:
-            spec_path = ROOT / "機種スペック" / f"{source.stem}.md"
-            if spec_path.exists():
-                rates["first_hit_den"] = parse_guide_rates(
-                    spec_path.read_text(encoding="utf-8")
-                ).get("first_hit_den")
         guide_cards.append(
             (
                 title_of(text, source.stem),
                 blurb(text),
                 guide_out[key],
-                spec_out.get(key),
+                None,
                 units,
                 rates,
             )
         )
 
-    spec_cards = []
-    for source in spec_sources:
-        text = source.read_text(encoding="utf-8")
-        key = site_name(source.stem)
-        units = all_units_by_machine.get(key, [])
-        tags = [] if key in _spec_first else spec_tags(text)
-        spec_cards.append(
-            (
-                title_of(text, source.stem),
-                blurb(text),
-                spec_out[key],
-                guide_out.get(key),
-                units,
-                tags,
-            )
-        )
+    spec_cards: list[
+        tuple[str, str, Path, Path | None, list[tuple[str, Path]], list[str]]
+    ] = []
 
     machines = load_machine_borders()
     stores = load_store_exchanges()
@@ -4698,13 +4639,13 @@ def main() -> None:
         regions,
         stations,
     )
-    # 機種スペックの図解など、Markdown から参照する静的画像を docs へコピーする。
-    spec_images = ROOT / "機種スペック" / "images"
-    if spec_images.is_dir():
-        dest_images = OUT / "機種スペック" / "images"
+    # 攻略情報の盤面図解など、Markdown から参照する静的画像を docs へコピーする。
+    guide_images = ROOT / "攻略情報" / "images"
+    if guide_images.is_dir():
+        dest_images = OUT / "攻略情報" / "images"
         if dest_images.exists():
             shutil.rmtree(dest_images)
-        shutil.copytree(spec_images, dest_images)
+        shutil.copytree(guide_images, dest_images)
 
     # 店舗フロアマップなど、店舗画像/<店名>/ を docs/店舗/<店名>/ へコピーする。
     store_images_root = ROOT / "店舗画像"

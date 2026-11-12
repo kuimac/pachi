@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""機種スペック／攻略情報の「盤面の場所」を機種ごとに詳しくし、専用SVGを付ける。"""
+"""攻略情報の「盤面の場所」を機種ごとに詳しくし、専用SVGを付ける。"""
 
 from __future__ import annotations
 
@@ -10,9 +10,8 @@ from html import escape
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC_DIR = ROOT / "機種スペック"
 GUIDE_DIR = ROOT / "攻略情報"
-BOARD_DIR = SPEC_DIR / "images" / "boards"
+BOARD_DIR = GUIDE_DIR / "images" / "boards"
 
 
 @dataclass
@@ -460,7 +459,7 @@ def render_svg(title: str, profile: BoardProfile) -> str:
 def section_markdown(profile: BoardProfile, image_rel: str, *, guide: bool) -> str:
     rows = "\n".join(f"| {a} | {b} | {c} |" for a, b, c in profile.rows)
     notes = "\n".join(f"- {n}" for n in profile.notes)
-    # 攻略は ../機種スペック/ 経由、スペックは images/ 直下
+    # 盤面図は 攻略情報/images/boards/ 直下
     img = image_rel
     return (
         f"{profile.lead}\n"
@@ -491,10 +490,9 @@ def safe_stem_filename(stem: str) -> str:
 
 def main() -> None:
     BOARD_DIR.mkdir(parents=True, exist_ok=True)
-    specs = sorted(SPEC_DIR.glob("*.md"))
-    updated_spec = 0
+    guides = sorted(GUIDE_DIR.glob("*.md"))
     updated_guide = 0
-    for path in specs:
+    for path in guides:
         if path.stem in {"パチンコ用語一覧", "オカルトパチンコ動作一覧"}:
             continue
         text = path.read_text(encoding="utf-8")
@@ -509,26 +507,13 @@ def main() -> None:
             title = m.group(1).strip()
         svg_path.write_text(render_svg(title, profile), encoding="utf-8")
 
-        spec_body = section_markdown(profile, f"images/boards/{fname}", guide=False)
-        new_spec = replace_board_section(text, spec_body)
-        if new_spec != text:
-            path.write_text(new_spec, encoding="utf-8")
-            updated_spec += 1
-
-        guide_path = GUIDE_DIR / f"{path.stem}.md"
-        if guide_path.exists():
-            gtext = guide_path.read_text(encoding="utf-8")
-            if "## 盤面の場所" in gtext:
-                guide_body = section_markdown(
-                    profile, f"../機種スペック/images/boards/{fname}", guide=True
-                )
-                new_guide = replace_board_section(gtext, guide_body)
-                if new_guide != gtext:
-                    guide_path.write_text(new_guide, encoding="utf-8")
-                    updated_guide += 1
+        guide_body = section_markdown(profile, f"images/boards/{fname}", guide=True)
+        new_guide = replace_board_section(text, guide_body)
+        if new_guide != text:
+            path.write_text(new_guide, encoding="utf-8")
+            updated_guide += 1
 
     print(f"board svgs -> {BOARD_DIR}")
-    print(f"updated specs: {updated_spec}")
     print(f"updated guides: {updated_guide}")
 
 

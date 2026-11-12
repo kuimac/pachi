@@ -4646,6 +4646,10 @@ def main() -> None:
         if dest_images.exists():
             shutil.rmtree(dest_images)
         shutil.copytree(guide_images, dest_images)
+    # 旧 機種スペック 公開物が残らないようにする
+    legacy_spec = OUT / "機種スペック"
+    if legacy_spec.exists():
+        shutil.rmtree(legacy_spec)
 
     # 店舗フロアマップなど、店舗画像/<店名>/ を docs/店舗/<店名>/ へコピーする。
     store_images_root = ROOT / "店舗画像"

@@ -196,7 +196,8 @@ def write_metric_csvs(
             if d and val != "":
                 existing[d] = val.replace(",", "")
         rows = []
-        for d in sorted(existing):
+        # Pages・CSVとも新しい日付が上（降順）
+        for d in sorted(existing, reverse=True):
             delta = (base_day.date() - datetime.strptime(d, "%Y-%m-%d").date()).days
             if delta == 0:
                 rel_label = "当日"
@@ -245,7 +246,7 @@ def rebuild_summary(store_dir: Path, machine: str, units: list[str]) -> None:
         with (folder / "大当り一覧.csv").open("w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
             w.writeheader()
-            for d in sorted(by_day):
+            for d in sorted(by_day, reverse=True):
                 w.writerow({k: by_day[d].get(k, "") for k in fields})
 
 

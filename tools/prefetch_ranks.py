@@ -236,6 +236,7 @@ def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 
 
 def load_snap(store: str) -> dict[str, object] | None:
+    """直近の成功スナップショット（失敗 403 で上書きしない）。"""
     p = SNAP_DIR / store / "last.json"
     if not p.exists():
         return None
@@ -243,9 +244,19 @@ def load_snap(store: str) -> dict[str, object] | None:
 
 
 def save_snap(store: str, snap: dict[str, object]) -> None:
+    """毎回 last_attempt.json を書く。last.json は ok=True のときだけ更新。
+
+    Cloud / ubuntu-latest Actions は Site Seven が 403 になりやすく、
+    失敗で成功スナップショットを潰すと朝イチ差分が壊れる。
+    """
     d = SNAP_DIR / store
     d.mkdir(parents=True, exist_ok=True)
-    (d / "last.json").write_text(json.dumps(snap, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    payload = json.dumps(snap, ensure_ascii=False, indent=2) + "\n"
+    (d / "last_attempt.json").write_text(payload, encoding="utf-8")
+    if snap.get("ok"):
+        (d / "last.json").write_text(payload, encoding="utf-8")
+    else:
+        print(f"[snap] {store}: keep last.json (attempt failed; see last_attempt.json)")
 
 
 def diff_report(store: str, prev: dict[str, object] | None, cur: dict[str, object], morning: bool) -> str:

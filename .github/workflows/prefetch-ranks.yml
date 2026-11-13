@@ -1,4 +1,8 @@
-name: Prefetch ranks
+name: Prefetch ranks (ubuntu probe)
+
+# Site Seven は ubuntu-latest / Cloud から 403 になりやすい（監視用）。
+# 本番取得は Prefetch ranks (Mac self-hosted) か Mac keepalive を使う。
+# last.json は成功時のみ更新（失敗は last_attempt.json）。
 
 on:
   workflow_dispatch:
@@ -14,6 +18,9 @@ on:
           - 中山ZoRoN
           - エスパス日拓西武新宿駅前店
           - 楽園町田店
+          - 楽園渋谷駅前店
+          - 楽園渋谷道玄坂店
+          - エスパス日拓渋谷駅前新館
       mode:
         description: morning=必須の無料データ差分 / adhoc=随時
         required: true
@@ -69,15 +76,24 @@ jobs:
           echo "day=$(TZ=Asia/Tokyo date +%F)" >> "$GITHUB_OUTPUT"
 
       - name: Prefetch free ranks
+        id: fetch
         shell: bash
         run: |
           set -euo pipefail
+          set +e
           python3 tools/prefetch_ranks.py \
             --store "${{ steps.args.outputs.store }}" \
             --mode "${{ steps.args.outputs.mode }}" \
             --day "${{ steps.args.outputs.day }}"
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          # 403 全滅でもジョブは緑（監視コミット用）。morning 失敗は annotation だけ。
+          if [[ "$code" -ne 0 ]]; then
+            echo "::warning::prefetch_ranks exited $code (often Site Seven 403 from ubuntu). Use Mac self-hosted workflow or Mac keepalive."
+          fi
 
-      - name: Commit CSV and diff reports
+      - name: Commit attempt snapshots and diff reports
         shell: bash
         run: |
           set -euo pipefail
@@ -87,6 +103,7 @@ jobs:
             '*/出玉ランキング_*.csv' \
             '*/無料データ差分.md' \
             'tools/prefetch_snapshots/*/last.json' \
+            'tools/prefetch_snapshots/*/last_attempt.json' \
             || true
           # never stage personal / cache
           git reset HEAD -- 'プレイ履歴.local.md' '.cache' 2>/dev/null || true
@@ -97,5 +114,5 @@ jobs:
           DAY="${{ steps.args.outputs.day }}"
           MODE="${{ steps.args.outputs.mode }}"
           STORE="${{ steps.args.outputs.store }}"
-          git commit -m "Prefetch ranks ${DAY} ${MODE} (${STORE})"
+          git commit -m "Prefetch probe ${DAY} ${MODE} (${STORE})"
           git push origin HEAD

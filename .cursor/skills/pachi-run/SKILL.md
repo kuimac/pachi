@@ -200,13 +200,32 @@ python3 tools/brief.py diff <正規店名> --day YYYY-MM-DD --save
 - https://kuimac.github.io/pachi/%E5%BA%97%E8%88%97/%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/%E5%85%A8%E5%8F%B0%E4%B8%80%E8%A6%A7.html
 - https://kuimac.github.io/pachi/%E5%BA%97%E8%88%97/%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/%E5%87%BA%E7%8E%89%E3%83%A9%E3%83%B3%E3%82%AD%E3%83%B3%E3%82%B0.html
 
-### 5. Remote / Cloud / Actions
+### 5. Remote / Cloud / Actions（Mac 落ち時フォールバック）
 
-1. スマホ・Remote では **まず PC Agent**。
-2. PC 不可のとき、無料ランキングは GitHub Actions `Prefetch ranks`（`workflow_dispatch`）で CSV を置いてから分析してよい。
-3. **朝イチ**は prefetch の `mode=morning` 差分レポートで、無料公開の取得範囲に変更がないか確認してから戦略 MD を書く（変更なしも明記）。
-4. 有料・CAPTCHA・ログイン壁は Actions でも取れない。迂回しない。
-5. 公開完了の定義は **main への push 成功**。
+Site Seven 無料枠は **住宅 IP（Mac）以外だと 403 になりやすい**。  
+実測（2026-11-13）: Cloud VM・`ubuntu-latest` Actions とも `m.site777.jp` が **HTTP 403**。Mac からの取得のみ成功。
+
+| 経路 | 取得（Site Seven） | 分析・Pages |
+| --- | --- | --- |
+| Mac Cursor worker（優先） | 可 | 可 |
+| Mac keepalive / launchd（`tools/mac_keepalive_fetch.sh`） | 可（Mac 起床中） | `--publish` で可 |
+| Mac self-hosted Actions（`Prefetch ranks (Mac self-hosted)`） | 可（runner 生存時） | workflow 内で HTML 更新 |
+| Cloud worker alone | **不可（403）** | 既存 CSV があれば分析・publish のみ可 |
+| ubuntu Actions（`Prefetch ranks (ubuntu probe)`） | **不可（監視用）** | 失敗で `last.json` は潰さない |
+
+1. スマホ・Remote では **まず Mac / PC Agent**（self-hosted worker）。
+2. Mac worker が落ちていても Mac 本体が起きていれば:
+   - `./tools/mac_keepalive_fetch.sh --store <店|all> --publish`  
+     または launchd（`tools/macos/com.kuimac.pachi.fetch.plist`）
+   - または GitHub Actions **`Prefetch ranks (Mac self-hosted)`**（要 self-hosted runner）
+3. Mac がスリープ／オフラインで取得できないとき:
+   - Cloud worker で **新規 Site Seven 取得はしない**（403・迂回禁止）。
+   - 直近の成功 CSV（`出玉ランキング_*.csv` / `全台データ_*.csv`）があれば分析・`publish.sh` のみ実行。
+   - データが無い／古いときは失敗を報告し、Mac 起床・keepalive・runner を促して止める。
+4. **朝イチ**は prefetch の `mode=morning` 差分（成功スナップショット基準）で無料公開の変化を確認してから戦略 MD を書く（変更なしも明記）。
+5. 有料・CAPTCHA・ログイン壁は Actions / Cloud でも取れない。迂回しない。
+6. 公開完了の定義は **main への push 成功**。
+7. 失敗スナップショットは `last_attempt.json` のみ。成功時だけ `last.json` を更新する（ubuntu 403 で朝イチ差分を壊さない）。
 
 ## やらないこと
 

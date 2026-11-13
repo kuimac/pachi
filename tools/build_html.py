@@ -2748,6 +2748,18 @@ def discover_child_pages(from_file: Path) -> list[tuple[str, Path]]:
     return items
 
 
+def _side_link_html(from_file: Path, label: str, path: Path) -> tuple[str, bool]:
+    current = False
+    attrs = ""
+    try:
+        if path.resolve() == from_file.resolve():
+            current = True
+            attrs = ' aria-current="page" class="is-current"'
+    except OSError:
+        pass
+    return f'<a href="{href(from_file, path)}"{attrs}>{escape(label)}</a>', current
+
+
 def sidemenu_html(from_file: Path) -> str:
     children = discover_child_pages(from_file)
     links: list[str] = []
@@ -2759,14 +2771,32 @@ def sidemenu_html(from_file: Path) -> str:
             ("攻略情報", "#guide"),
         ):
             links.append(f'<a href="{anchor}">{escape(label)}</a>')
+
+    # 日付リンクは直近3件を展開、それ以前は折りたたみ（現在ページが中なら開く）
+    recent_dates = 3
+    date_links: list[tuple[str, bool]] = []
     for label, path in children:
-        current = ""
-        try:
-            if path.resolve() == from_file.resolve():
-                current = ' aria-current="page" class="is-current"'
-        except OSError:
-            pass
-        links.append(f'<a href="{href(from_file, path)}"{current}>{escape(label)}</a>')
+        html, is_current = _side_link_html(from_file, label, path)
+        if DATE_RE.fullmatch(label):
+            date_links.append((html, is_current))
+        else:
+            links.append(html)
+
+    if date_links:
+        shown = date_links[:recent_dates]
+        older = date_links[recent_dates:]
+        links.extend(html for html, _ in shown)
+        if older:
+            older_open = any(is_current for _, is_current in older)
+            open_attr = " open" if older_open else ""
+            older_html = "".join(html for html, _ in older)
+            links.append(
+                f'<details class="side-older-dates"{open_attr}>'
+                f"<summary>以前の日付（{len(older)}）</summary>"
+                f'<div class="side-older-dates-list">{older_html}</div>'
+                f"</details>"
+            )
+
     if not links:
         return ""
     parent_link = ""

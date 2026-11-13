@@ -899,6 +899,34 @@ body.has-sidemenu .layout > main {
   border-radius: 10px 10px 0 0;
   margin-bottom: 4px;
 }
+.sidemenu nav details.side-older-dates {
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: none;
+  margin-top: 2px;
+}
+.sidemenu nav details.side-older-dates > summary {
+  padding: 9px 10px;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--muted);
+  letter-spacing: 0;
+  border-radius: 10px;
+}
+.sidemenu nav details.side-older-dates > summary:hover {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent);
+}
+.sidemenu nav details.side-older-dates[open] > summary {
+  border-bottom: none;
+}
+.sidemenu nav .side-older-dates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 4px;
+}
 
 @media (min-width: 960px) {
   body.has-sidemenu .layout {

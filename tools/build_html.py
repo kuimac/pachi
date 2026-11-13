@@ -2659,16 +2659,23 @@ def discover_child_pages(from_file: Path) -> list[tuple[str, Path]]:
             path = OUT / name
             if path.exists():
                 add(path.stem, path)
-        for sub in sorted(OUT.iterdir()):
+        named: list[Path] = []
+        dated: list[Path] = []
+        for sub in OUT.iterdir():
             if not sub.is_dir() or sub.name.startswith("."):
                 continue
-            if sub.name in _TOP_SIDE_DIRS or DATE_RE.fullmatch(sub.name):
-                if (sub / "index.html").exists():
-                    add(sub.name, sub / "index.html")
-                elif sub.name == "解説":
-                    htmls = sorted(sub.glob("*.html"))
-                    if len(htmls) == 1:
-                        add(htmls[0].stem, htmls[0])
+            if DATE_RE.fullmatch(sub.name):
+                dated.append(sub)
+            elif sub.name in _TOP_SIDE_DIRS:
+                named.append(sub)
+        # 日付フォルダは新しいものが上（Pages 全体で統一）
+        for sub in [*sorted(named, key=lambda path: path.name), *sorted(dated, key=lambda path: path.name, reverse=True)]:
+            if (sub / "index.html").exists():
+                add(sub.name, sub / "index.html")
+            elif sub.name == "解説":
+                htmls = sorted(sub.glob("*.html"))
+                if len(htmls) == 1:
+                    add(htmls[0].stem, htmls[0])
         return items
 
     src_dir: Path | None = None
@@ -3146,9 +3153,32 @@ def svg_bars(points: list[tuple[str, int | None]], label: str) -> str:
     )
 
 
+def rows_newest_date_first(
+    rows: list[dict[str, str]],
+    *,
+    date_key: str = "日付",
+) -> list[dict[str, str]]:
+    """日付列がある行を新しい日付が上になるよう並べる（表用）。"""
+    if not rows or not any((row.get(date_key) or "").strip() for row in rows):
+        return rows
+    return sorted(rows, key=lambda row: (row.get(date_key) or "").strip(), reverse=True)
+
+
+def rows_oldest_date_first(
+    rows: list[dict[str, str]],
+    *,
+    date_key: str = "日付",
+) -> list[dict[str, str]]:
+    """日付列がある行を古い→新しい（グラフ左→右・右端が当日）。"""
+    if not rows or not any((row.get(date_key) or "").strip() for row in rows):
+        return rows
+    return sorted(rows, key=lambda row: (row.get(date_key) or "").strip())
+
+
 def chart_block(rows: list[dict[str, str]], column: str) -> str:
+    # 表は新しい上が原則だが、棒グラフは左→右で時系列（右端＝当日）
     points = []
-    for row in rows:
+    for row in rows_oldest_date_first(rows):
         day = row.get("相対日") or fmt_date(row.get("日付", ""))
         if row.get("日付"):
             day = fmt_date(row["日付"])
@@ -3161,12 +3191,14 @@ def chart_block(rows: list[dict[str, str]], column: str) -> str:
 
 
 def table_html(fieldnames: list[str], rows: list[dict[str, str]]) -> str:
+    # 日付列がある表はすべて新しい日付が上（Pages 全体で統一）
+    display_rows = rows_newest_date_first(rows) if "日付" in fieldnames else rows
     heads = []
     for name in fieldnames:
         cls = ' class="num"' if name in COUNT_COLS or name in PROB_COLS or name == "時間" else ""
         heads.append(f"<th{cls}>{escape(name)}</th>")
     body = []
-    for row in rows:
+    for row in display_rows:
         today = row.get("相対日") == "当日"
         cells = []
         for name in fieldnames:
@@ -3751,8 +3783,10 @@ def build_unit_page(
     files = {path.stem: path for path in folder.glob("*.csv")}
     summary_name = "大当り一覧"
     fieldnames, rows = read_csv(files[summary_name]) if summary_name in files else ([], [])
-    latest = rows[-1] if rows else {}
-    first = rows[0] if rows else {}
+    # 統計は最古〜最新。表表示は table_html 側で新しい上が原則
+    chron = rows_oldest_date_first(rows) if rows else []
+    latest = chron[-1] if chron else {}
+    first = chron[0] if chron else {}
     span = ""
     if first and latest:
         span = f'{escape(first.get("日付", ""))} 〜 {escape(latest.get("日付", ""))}（{escape(latest.get("相対日", ""))}）'

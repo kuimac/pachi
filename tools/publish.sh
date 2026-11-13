@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 分析結果を docs に反映し、main へ push して GitHub Pages を更新する。
 # build_html.py が店舗下層の全台一覧・出玉ランキングも最新 CSV で再生成する。
+# 攻略の設置店舗は全台CSVから更新してから HTML 化する。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,11 +13,12 @@ if [[ -z "$MSG" ]]; then
   exit 2
 fi
 
+PY=python3
 if [[ -x "$ROOT/.venv/bin/python" ]]; then
-  "$ROOT/.venv/bin/python" tools/build_html.py
-else
-  python3 tools/build_html.py
+  PY="$ROOT/.venv/bin/python"
 fi
+"$PY" tools/update_guide_installs.py
+"$PY" tools/build_html.py
 
 if git diff --quiet && git diff --cached --quiet && [[ -z "$(git ls-files --others --exclude-standard)" ]]; then
   echo "no changes to publish"

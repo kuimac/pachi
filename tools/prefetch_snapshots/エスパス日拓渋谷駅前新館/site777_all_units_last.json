@@ -1,8 +1,8 @@
 {
   "store": "エスパス日拓渋谷駅前新館",
   "ok": true,
-  "fetched_at": "2026-11-12 09:54",
-  "day": "2026-11-12",
+  "fetched_at": "2026-11-13 09:59",
+  "day": "2026-11-13",
   "models": 40,
   "units": 371,
   "rate": "4パチ",
@@ -28,7 +28,7 @@
     "!-- var microad_blade_jp = microad_blade_jp || { 'params' : new Array(), 'complete_map' : new Object() }; (function() { var param = {'co_account_id' : '5066', 'group_id' : '', 'country_id' : '1', 'ver' : '2.1.0'}; microad_blade_jp.params.push(param); var src = (location.protocol == 'https:') ? 'https://d-cache.microad.jp/js/blade_track_jp.js' : 'http://d-cache.microad.jp/js/blade_track_jp.js'; var bs = document.createElement('script'); bs.type = 'text/javascript'; bs.async = true; bs.charset = 'utf-8'; bs.src = src; var s = document.getElementsByTagName('script'): http=509 HTTP Error 509: 509",
     "!-- var microad_blade_jp = microad_blade_jp || { 'params' : new Array(), 'complete_map' : new Object() }; (function() { var param = {'co_account_id' : '5066', 'group_id' : '', 'country_id' : '1', 'ver' : '2.1.0'}; microad_blade_jp.params.push(param); var src = (location.protocol == 'https:') ? 'https://d-cache.microad.jp/js/blade_track_jp.js' : 'http://d-cache.microad.jp/js/blade_track_jp.js'; var bs = document.createElement('script'); bs.type = 'text/javascript'; bs.async = true; bs.charset = 'utf-8'; bs.src = src; var s = document.getElementsByTagName('script'): http=509 HTTP Error 509: 509"
   ],
-  "csv": "エスパス日拓渋谷駅前新館/全台データ_2026-11-12.csv",
+  "csv": "エスパス日拓渋谷駅前新館/全台データ_2026-11-13.csv",
   "model_names": [
     "PA大海物語5ブラックLT99ver.",
     "PA大海物語５ ARBC",

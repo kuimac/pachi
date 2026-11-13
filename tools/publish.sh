@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 分析結果を docs に反映し、main へ push して GitHub Pages を更新する。
+# build_html.py が店舗下層の全台一覧・出玉ランキングも最新 CSV で再生成する。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

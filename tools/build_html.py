@@ -23,10 +23,46 @@ STORES_FILE = ROOT / "店舗一覧.md"
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 PROB_COLS = {"大当り確率", "初当り確率", "チャンス中大当り確率", "確率"}
-COUNT_COLS = {"スタート", "累計スタート", "大当り回数", "初当り回数", "最高出玉", "回数"}
+COUNT_COLS = {
+    "スタート",
+    "累計スタート",
+    "大当り回数",
+    "初当り回数",
+    "最高出玉",
+    "回数",
+    "差玉",
+    "順位",
+    "設置台数",
+}
 CHART_COLS = ["スタート", "大当り回数", "初当り回数", "最高出玉"]
 MEASURE_CSV = "実測回転"
 PLAY_FILE = ROOT / "プレイ履歴.md"
+SNAP_DIR = ROOT / "tools" / "prefetch_snapshots"
+ALL_UNITS_KIND = "全台データ"
+RANK_KIND = "出玉ランキング"
+ALL_UNITS_COLS = [
+    "日付",
+    "台番号",
+    "機種",
+    "累計スタート",
+    "大当り回数",
+    "初当り回数",
+    "最高出玉",
+    "レート",
+    "mdc",
+    "設置台数",
+]
+RANK_COLS = [
+    "日付",
+    "順位",
+    "台番号",
+    "機種",
+    "累計スタート",
+    "大当り回数",
+    "初当り回数",
+    "差玉",
+    "レート",
+]
 _PLAY_CACHE: list[dict[str, object]] | None = None
 
 
@@ -3272,6 +3308,294 @@ def build_markdown(
     write(dest, page)
 
 
+def csv_day_key(path: Path) -> str:
+    match = re.search(r"_(\d{4}-\d{2}-\d{2})\.csv$", path.name)
+    return match.group(1) if match else ""
+
+
+def find_dated_csv(store: str, kind: str, day: str | None = None) -> Path | None:
+    """kind は 全台データ / 出玉ランキング。店フォルダを日付フォルダより優先。"""
+    if day:
+        for path in (
+            ROOT / store / f"{kind}_{day}.csv",
+            ROOT / day / store / f"{kind}_{day}.csv",
+        ):
+            if path.exists():
+                return path
+        return None
+    found: list[Path] = []
+    store_dir = ROOT / store
+    if store_dir.is_dir():
+        found.extend(store_dir.glob(f"{kind}_*.csv"))
+    for day_dir in ROOT.glob("20??-??-??"):
+        nested = day_dir / store
+        if nested.is_dir():
+            found.extend(nested.glob(f"{kind}_*.csv"))
+    if not found:
+        return None
+    found.sort(key=lambda path: (csv_day_key(path), -len(path.parts)))
+    return found[-1]
+
+
+def load_snap_json(path: Path) -> dict[str, object]:
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def normalize_fetched_at(raw: str) -> str:
+    text = (raw or "").strip()
+    if not text:
+        return ""
+    text = re.sub(r"（Asia/Tokyo）|\(Asia/Tokyo\)", "", text).strip()
+    if re.match(r"\d{4}-\d{2}-\d{2}", text):
+        return f"{text}（Asia/Tokyo）"
+    return text
+
+
+def fetch_meta_from_memo(store: str, day: str) -> tuple[str, str]:
+    """生データ取得結果.md から取得日時と集計期間を拾う。"""
+    fetched = ""
+    period = ""
+    for path in (
+        ROOT / day / store / "生データ取得結果.md",
+        ROOT / day / "生データ取得結果.md",
+    ):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        match = re.search(r"取得日時:\s*(.+)$", text, re.M)
+        if match and not fetched:
+            fetched = normalize_fetched_at(match.group(1))
+        period_match = re.search(r"集計期間\s*(\d+/\d+\([^)]+\))", text)
+        if period_match and not period:
+            period = period_match.group(1).strip()
+        if fetched and period:
+            break
+    return fetched, period
+
+
+def resolve_fetch_meta(store: str, day: str, kind: str) -> dict[str, str]:
+    """prefetch snapshot と生データメモから取得時刻・集計期間を返す。mtime は使わない。"""
+    fetched = ""
+    period = ""
+    source = ""
+    snap = SNAP_DIR / store
+    if kind == RANK_KIND:
+        meta = load_snap_json(snap / "last.json")
+        if str(meta.get("day") or "") == day or (
+            not meta.get("day") and str(meta.get("fetched_at") or "").startswith(day)
+        ):
+            fetched = normalize_fetched_at(str(meta.get("fetched_at") or ""))
+            period = str(meta.get("period") or "").strip()
+            if fetched:
+                source = "prefetch_snapshots/last.json"
+    elif kind == ALL_UNITS_KIND:
+        meta = load_snap_json(snap / "site777_all_units_last.json")
+        if str(meta.get("day") or "") == day or (
+            not meta.get("day") and str(meta.get("fetched_at") or "").startswith(day)
+        ):
+            fetched = normalize_fetched_at(str(meta.get("fetched_at") or ""))
+            if fetched:
+                source = "prefetch_snapshots/site777_all_units_last.json"
+        # ランキング snapshot の集計期間も併記用に拾う
+        rank_meta = load_snap_json(snap / "last.json")
+        if str(rank_meta.get("day") or "") == day:
+            period = str(rank_meta.get("period") or "").strip() or period
+
+    memo_fetched, memo_period = fetch_meta_from_memo(store, day)
+    if memo_fetched:
+        # メモの取得日時は両CSV共通の実取得時刻として優先
+        fetched = memo_fetched
+        source = "生データ取得結果.md"
+    if memo_period:
+        period = memo_period
+    return {"fetched_at": fetched, "period": period, "source": source}
+
+
+def preferred_csv_columns(kind: str, fieldnames: list[str]) -> list[str]:
+    preferred = ALL_UNITS_COLS if kind == ALL_UNITS_KIND else RANK_COLS if kind == RANK_KIND else []
+    if not preferred:
+        return fieldnames
+    ordered = [name for name in preferred if name in fieldnames]
+    ordered.extend(name for name in fieldnames if name not in ordered)
+    return ordered
+
+
+def csv_kind_from_stem(stem: str) -> str:
+    if stem.startswith(ALL_UNITS_KIND):
+        return ALL_UNITS_KIND
+    if stem.startswith(RANK_KIND):
+        return RANK_KIND
+    return ""
+
+
+def fetch_meta_html(meta: dict[str, str], *, row_count: int | None = None) -> str:
+    parts: list[str] = []
+    fetched = meta.get("fetched_at") or ""
+    if fetched:
+        parts.append(f"取得日時: {escape(fetched)}")
+    else:
+        parts.append("取得日時: 不明（snapshot / 生データメモなし）")
+    period = meta.get("period") or ""
+    if period:
+        parts.append(f"ホール集計期間: {escape(period)}")
+    if row_count is not None:
+        parts.append(f"{row_count}件")
+    return f'<p class="section-note">{" · ".join(parts)}</p>'
+
+
+def decorate_csv_fragment(
+    dest: Path,
+    fragment: str,
+    *,
+    guides: dict[str, Path] | None = None,
+    unit_map: dict[str, str] | None = None,
+) -> str:
+    text = fragment
+    if guides:
+        text = link_machines(text, build_machine_guide_map(dest, guides))
+    if unit_map:
+        text = link_units(text, unit_map)
+    return text
+
+
+def store_data_page_paths(store: str) -> dict[str, Path]:
+    hub = OUT / "店舗" / store
+    return {
+        ALL_UNITS_KIND: hub / "全台一覧.html",
+        RANK_KIND: hub / "出玉ランキング.html",
+    }
+
+
+def build_store_data_page(
+    store: str,
+    kind: str,
+    *,
+    guides: dict[str, Path],
+    unit_map: dict[str, str],
+) -> Path | None:
+    """店舗ハブ下層の最新全台一覧 / 出玉ランキングを生成。CSVが無ければ作らない。"""
+    source = find_dated_csv(store, kind)
+    dest = store_data_page_paths(store)[kind]
+    title = "全台一覧" if kind == ALL_UNITS_KIND else "出玉ランキング"
+    hub = OUT / "店舗" / store / "index.html"
+    if source is None:
+        return None
+    day = csv_day_key(source)
+    fieldnames, rows = read_csv(source)
+    columns = preferred_csv_columns(kind, fieldnames)
+    meta = resolve_fetch_meta(store, day, kind) if day else {"fetched_at": "", "period": "", "source": ""}
+    data = decorate_csv_fragment(
+        dest,
+        table_html(columns, rows),
+        guides=guides,
+        unit_map=unit_map,
+    )
+    sibling = store_data_page_paths(store)[
+        RANK_KIND if kind == ALL_UNITS_KIND else ALL_UNITS_KIND
+    ]
+    links = [f'<a href="{href(dest, hub)}">店舗ページ</a>']
+    if sibling.exists() or find_dated_csv(
+        store, RANK_KIND if kind == ALL_UNITS_KIND else ALL_UNITS_KIND
+    ):
+        other_label = "出玉ランキング" if kind == ALL_UNITS_KIND else "全台一覧"
+        links.append(f'<a href="{href(dest, sibling)}">{escape(other_label)}</a>')
+    day_raw = OUT / day / store / f"{kind}_{day}.html" if day else None
+    if day_raw and day_raw.exists():
+        links.append(f'<a href="{href(dest, day_raw)}">この日のCSVページ</a>')
+    body = (
+        f'<p class="kicker">{escape(store)}'
+        f'{f" · {escape(date_label(day))}" if day else ""}</p>'
+        f"<h1>{escape(title)}</h1>"
+        f'{fetch_meta_html(meta, row_count=len(rows))}'
+        f'<div class="related">{"".join(links)}</div>'
+        f"{data}"
+        f'<p class="foot">元ファイル <code>{escape(str(source.relative_to(ROOT)))}</code>。'
+        "データ取得後に <code>python3 tools/build_html.py</code> または "
+        "<code>./tools/publish.sh</code> でこのページを更新する。</p>"
+    )
+    trail = [
+        ("Top", OUT / "index.html", ""),
+        ("店舗", OUT / "index.html", "#stores"),
+        (store, hub, ""),
+        (title, None),
+    ]
+    page = shell(dest, f"{title} / {store}", crumb(dest, trail), body, wide=True)
+    write(dest, page)
+    return dest
+
+
+def build_store_data_pages(
+    store: str,
+    *,
+    guides: dict[str, Path],
+    unit_map: dict[str, str],
+) -> dict[str, Path]:
+    built: dict[str, Path] = {}
+    # 相互リンクのため先に両方の存在を確定してから生成する
+    for kind in (ALL_UNITS_KIND, RANK_KIND):
+        if find_dated_csv(store, kind) is None:
+            continue
+        path = build_store_data_page(store, kind, guides=guides, unit_map=unit_map)
+        if path:
+            built[kind] = path
+    # 相互リンクを埋めるため2回目
+    for kind in list(built):
+        build_store_data_page(store, kind, guides=guides, unit_map=unit_map)
+    return built
+
+
+def raw_data_nav_html(
+    dest: Path,
+    store: str,
+    *,
+    day: str | None = None,
+    pages: dict[str, Path] | None = None,
+) -> str:
+    """店舗ページ用の全台一覧・出玉ランキングリンク。"""
+    pages = pages or {}
+    links: list[str] = []
+    notes: list[str] = []
+    for kind, label in ((ALL_UNITS_KIND, "全台一覧"), (RANK_KIND, "出玉ランキング")):
+        hub_page = pages.get(kind) or store_data_page_paths(store).get(kind)
+        day_page = OUT / day / store / f"{kind}_{day}.html" if day else None
+        target = None
+        if day and day_page and day_page.exists():
+            target = day_page
+        elif hub_page and hub_page.exists():
+            target = hub_page
+        elif find_dated_csv(store, kind, day) or (day is None and find_dated_csv(store, kind)):
+            # build 途中でまだ書いていない場合は予定パスへ
+            target = day_page if day and day_page else hub_page
+        if target is None:
+            continue
+        links.append(f'<a href="{href(dest, target)}">{escape(label)}</a>')
+        csv_path = find_dated_csv(store, kind, day)
+        if csv_path:
+            meta = resolve_fetch_meta(store, csv_day_key(csv_path) or (day or ""), kind)
+            if meta.get("fetched_at"):
+                notes.append(f"{label} 取得日時 {meta['fetched_at']}")
+            if kind == RANK_KIND and meta.get("period"):
+                notes.append(f"ホール集計期間 {meta['period']}")
+    if not links:
+        return ""
+    note_html = (
+        f'<p class="section-note">{escape(" · ".join(dict.fromkeys(notes)))}</p>'
+        if notes
+        else ""
+    )
+    return (
+        '<p class="section-label" id="raw-data">出玉データ</p>'
+        f"{note_html}"
+        f'<div class="related">{"".join(links)}</div>'
+    )
+
+
 def build_raw_csv_page(
     source: Path,
     dest: Path,
@@ -3279,24 +3603,40 @@ def build_raw_csv_page(
     store: str,
     day: str,
     store_page: Path | None = None,
+    guides: dict[str, Path] | None = None,
+    unit_map: dict[str, str] | None = None,
 ) -> None:
     """日付フォルダ直下の生データ CSV（出玉ランキング・全台データなど）を表にする。"""
     fieldnames, rows = read_csv(source)
-    title = source.stem
+    kind = csv_kind_from_stem(source.stem)
+    title = "全台一覧" if kind == ALL_UNITS_KIND else "出玉ランキング" if kind == RANK_KIND else source.stem
+    columns = preferred_csv_columns(kind, fieldnames) if kind else fieldnames
     note = ""
-    if any(name in PROB_COLS for name in fieldnames):
+    if any(name in PROB_COLS for name in columns):
         note = "<p>確率は分母です。772 なら 1/772 と表示しています。</p>"
-    data = note + table_html(fieldnames, rows)
+    data = note + decorate_csv_fragment(
+        dest,
+        table_html(columns, rows),
+        guides=guides,
+        unit_map=unit_map,
+    )
+    meta = resolve_fetch_meta(store, day, kind) if kind else {"fetched_at": "", "period": "", "source": ""}
     hub = OUT / "店舗" / store / "index.html"
     links = []
     if store_page and store_page.exists():
         links.append(f'<a href="{href(dest, store_page)}">この日の店舗</a>')
     if hub.exists():
         links.append(f'<a href="{href(dest, hub)}">店舗ページ</a>')
+    hub_latest = store_data_page_paths(store).get(kind) if kind else None
+    if hub_latest:
+        latest_label = "最新の全台一覧" if kind == ALL_UNITS_KIND else "最新の出玉ランキング"
+        links.append(f'<a href="{href(dest, hub_latest)}">{escape(latest_label)}</a>')
     related = f'<div class="related">{"".join(links)}</div>' if links else ""
     body = (
         f'<p class="kicker">{escape(store)} · {escape(date_label(day))}</p>'
-        f"<h1>{escape(title)}</h1>{related}{data}"
+        f"<h1>{escape(title)}</h1>"
+        f"{fetch_meta_html(meta, row_count=len(rows))}"
+        f"{related}{data}"
         f'<p class="foot">元ファイル <code>{escape(str(source.relative_to(ROOT)))}</code></p>'
     )
     trail = [
@@ -3753,6 +4093,7 @@ def build_store_page(
     store: str,
     detail_pages: list[tuple[str, str, Path, str]],
     machines: list[tuple[str, Path | None, Path | None, list[tuple[str, Path, dict[str, str]]]]],
+    data_pages: dict[str, Path] | None = None,
 ) -> Path:
     dest = OUT / day / store / "index.html"
     day_page = OUT / day / "index.html"
@@ -3776,6 +4117,7 @@ def build_store_page(
     hub_link = (
         f'<p class="related"><a href="{href(dest, hub)}">この店の分析一覧</a></p>'
     )
+    raw_nav = raw_data_nav_html(dest, store, day=day, pages=data_pages)
     today = today_iso()
     has_judgment = any(label in JUDGMENT_STEMS for label, *_ in detail_pages)
     if has_judgment and day < today:
@@ -3798,6 +4140,7 @@ def build_store_page(
 <h1>{escape(store)}</h1>
 <p class="intro">{intro}</p>
 {hub_link}
+{raw_nav}
 {info}
 <input class="search" id="q" type="search" placeholder="台番号、機種名（なのは、鬼がかり、1088）" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
@@ -3836,6 +4179,7 @@ def build_store_hub(
     region: str = "",
     station: str = "",
     judgments: list[tuple[str, list[tuple[str, str, Path, str]]]] | None = None,
+    data_pages: dict[str, Path] | None = None,
 ) -> Path:
     """店舗ページ。当日の判断は追っかけ、過去日はスナップショットとして分ける。"""
     dest = OUT / "店舗" / store / "index.html"
@@ -3894,6 +4238,7 @@ def build_store_hub(
         f'<p class="intro">{escape(place)}。{lead}</p>' if place else f'<p class="intro">{lead}</p>'
     )
     info = store_info_html(store, dest, OUT / "店舗一覧.html")
+    raw_nav = raw_data_nav_html(dest, store, pages=data_pages)
     machine_html = machine_sections_html(dest, machines, store=store) if machines else ""
     machines_block = (
         f'<p class="section-label" id="machines">台データ</p>'
@@ -3907,6 +4252,7 @@ def build_store_hub(
     body = f"""
 <h1>{escape(store)}</h1>
 {place_html}
+{raw_nav}
 {info}
 <input class="search" id="q" type="search" placeholder="日付、判断名、台番号、機種名" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
@@ -4490,7 +4836,10 @@ def main() -> None:
             store_judgments.setdefault(store, []).append((day, judgment_pages))
 
             store_page = build_store_page(
-                day, store, detail_pages, store_machine_index.get(store, [])
+                day,
+                store,
+                detail_pages,
+                store_machine_index.get(store, []),
             )
             for csv_path in sorted(folder.glob("*.csv")):
                 if csv_path.stem in {"実測回転"} or ".local" in csv_path.name:
@@ -4502,6 +4851,8 @@ def main() -> None:
                     store=store,
                     day=day,
                     store_page=store_page,
+                    guides=guide_out,
+                    unit_map=unit_map_for(csv_dest),
                 )
             summary = " · ".join(label for label, *_ in detail_pages) or "詳細なし"
             store_when = next(
@@ -4602,6 +4953,16 @@ def main() -> None:
     store_hub_cards: list[tuple[str, str, Path, str, str, int]] = []
     # 店舗一覧の全店＋分析がある店（フロアマップのみの店も含む）
     hub_stores = list(dict.fromkeys([*load_store_names(), *sorted(by_store)]))
+    # 店舗下層の最新全台一覧・出玉ランキング（CSVがある店だけ）
+    store_data_pages: dict[str, dict[str, Path]] = {}
+    for store in hub_stores:
+        pages = build_store_data_pages(
+            store,
+            guides=guide_out,
+            unit_map=unit_map_for(store_data_page_paths(store)[ALL_UNITS_KIND]),
+        )
+        if pages:
+            store_data_pages[store] = pages
     for store in hub_stores:
         analyses = by_store.get(store, [])
         hub = build_store_hub(
@@ -4611,6 +4972,7 @@ def main() -> None:
             regions.get(store) or guess_region(store),
             stations.get(store) or guess_station(store),
             store_judgments.get(store, []),
+            store_data_pages.get(store),
         )
         if analyses:
             latest = max(analyses, key=lambda row: row[0])

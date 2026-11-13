@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""無料公開の出玉ランキング等を取得し CSV 化する（個人情報・認証は扱わない）。"""
+"""無料公開の出玉ランキング等を取得し CSV 化する（個人情報・認証は扱わない）。
+
+取得後は ./tools/publish.sh か python3 tools/build_html.py で
+docs/店舗/<店>/出玉ランキング.html（取得時刻付き）を更新する。
+"""
 
 from __future__ import annotations
 

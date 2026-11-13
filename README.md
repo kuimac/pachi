@@ -38,6 +38,15 @@
 | エスパス日拓西武新宿駅前店 | https://kuimac.github.io/pachi/%E5%BA%97%E8%88%97/%E3%82%A8%E3%82%B9%E3%83%91%E3%82%B9%E6%97%A5%E6%8B%93%E8%A5%BF%E6%AD%A6%E6%96%B0%E5%AE%BF%E9%A7%85%E5%89%8D%E5%BA%97/ |
 | カレイド新宿店 | https://kuimac.github.io/pachi/%E5%BA%97%E8%88%97/%E3%82%AB%E3%83%AC%E3%82%A4%E3%83%89%E6%96%B0%E5%AE%BF%E5%BA%97/ |
 
+店舗ハブ下層（CSVがある店のみ。`build_html.py` / `publish.sh` で最新CSVへ更新）:
+
+| ページ | URL例（楽園町田店） |
+| --- | --- |
+| 全台一覧 | https://kuimac.github.io/pachi/%E5%BA%97%E8%88%97/%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/%E5%85%A8%E5%8F%B0%E4%B8%80%E8%A6%A7.html |
+| 出玉ランキング | https://kuimac.github.io/pachi/%E5%BA%97%E8%88%97/%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/%E5%87%BA%E7%8E%89%E3%83%A9%E3%83%B3%E3%82%AD%E3%83%B3%E3%82%B0.html |
+
+取得日時は prefetch snapshot の `fetched_at` または `生データ取得結果.md`（Asia/Tokyo）。手順は `.cursor/skills/pachi-run/SKILL.md` の「全台一覧・出玉ランキング」。
+
 ### 日付別分析
 
 形式: `https://kuimac.github.io/pachi/<YYYY-MM-DD>/<店舗名>/`

@@ -170,6 +170,31 @@ python3 tools/brief.py diff <正規店名> --day YYYY-MM-DD --save
   - Pages: https://kuimac.github.io/pachi/
   - 店舗ページ: `https://kuimac.github.io/pachi/<YYYY-MM-DD>/<URLエンコード店舗名>/`
 
+### 4.1 全台一覧・出玉ランキング Pages（店舗下層）
+
+`build_html.py` が、全台 CSV がある店だけ店舗ハブ下層へ最新ページを出す。
+
+| ページ | 生成先 | ソース |
+| --- | --- | --- |
+| 全台一覧 | `docs/店舗/<店名>/全台一覧.html` | `全台データ_YYYY-MM-DD.csv`（店フォルダ優先） |
+| 出玉ランキング | `docs/店舗/<店名>/出玉ランキング.html` | `出玉ランキング_YYYY-MM-DD.csv` |
+
+- **取得日時**は `tools/prefetch_snapshots/<店>/` の `fetched_at`、または当日の `生データ取得結果.md` の取得日時（Asia/Tokyo）。ファイル mtime は使わない。
+- ランキングの **ホール集計期間**（snapshot の `period` / メモの集計期間）があれば併記。
+- 店舗ハブ・日付店舗ページからリンク。日付フォルダ側にも同 CSV の HTML（取得時刻付き）が出る。
+- CSV が無い店はページを作らない（リンクも出さない）。
+
+#### 今後データを取得したら
+
+1. いつもどおり CSV を置く（`prefetch_ranks.py` / `fetch_site777_all_units.py` / 手動）。
+2. **必ず** `./tools/publish.sh "..."`（または `python3 tools/build_html.py` のあと push）。build 時に上記2ページが最新 CSV で上書きされる。
+3. 取得だけして publish しないと Pages は古いまま。
+
+公開URL例（楽園町田店）:
+
+- https://kuimac.github.io/pachi/%E5%BA%97%E8%88%97/%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/%E5%85%A8%E5%8F%B0%E4%B8%80%E8%A6%A7.html
+- https://kuimac.github.io/pachi/%E5%BA%97%E8%88%97/%E6%A5%BD%E5%9C%92%E7%94%BA%E7%94%B0%E5%BA%97/%E5%87%BA%E7%8E%89%E3%83%A9%E3%83%B3%E3%82%AD%E3%83%B3%E3%82%B0.html
+
 ### 5. Remote / Cloud / Actions
 
 1. スマホ・Remote では **まず PC Agent**。

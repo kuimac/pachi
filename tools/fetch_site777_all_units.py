@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Site Seven 無料枠の機種別全台表（D3210）を取得して CSV 化する。分析はしない。"""
+"""Site Seven 無料枠の機種別全台表（D3210）を取得して CSV 化する。分析はしない。
+
+取得後は ./tools/publish.sh か python3 tools/build_html.py で
+docs/店舗/<店>/全台一覧.html（取得時刻付き）を更新する。
+"""
 
 from __future__ import annotations
 

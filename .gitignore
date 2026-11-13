@@ -9,3 +9,9 @@ tools/brief_snapshots/
 # personal / local only
 プレイ履歴.local.md
 *.local.md
+
+# DMM ranking screenshot dumps (regenerable)
+中山UNO/dmm_ptown/ranking_images/
+**/dmm_ptown/ranking_images/
+**/dmm_ptown/pscube_raw_*.html
+**/dmm_ptown/pscube_block_*.html

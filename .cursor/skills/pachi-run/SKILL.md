@@ -193,7 +193,7 @@ python3 tools/brief.py diff <正規店名> --day YYYY-MM-DD --save
 
 #### 今後データを取得したら
 
-1. いつもどおり CSV を置く（`prefetch_ranks.py` / `fetch_site777_all_units.py` / 手動）。
+1. いつもどおり CSV を置く（`prefetch_ranks.py` / `fetch_site777_all_units.py` / 手動）。中山UNO は加えて `fetch_dmm_ptown.py`（DMM/PSCUBE 併用。Site Seven を置き換えない。詳細は `docs/dmm-ptown-uno-fetch.md`）。
 2. **必ず** `./tools/publish.sh "..."`（または `python3 tools/build_html.py` のあと push）。build 時に上記2ページと店舗ハブの天井・遊タイム機表が最新 CSV で上書きされる。
 3. 取得だけして publish しないと Pages は古いまま。
 
@@ -206,15 +206,16 @@ python3 tools/brief.py diff <正規店名> --day YYYY-MM-DD --save
 ### 5. Remote / Cloud / Actions（Mac 落ち時フォールバック）
 
 Site Seven 無料枠は **住宅 IP（Mac）以外だと 403 になりやすい**。  
-実測（2026-11-13）: Cloud VM・`ubuntu-latest` Actions とも `m.site777.jp` が **HTTP 403**。Mac からの取得のみ成功。
+実測（2026-11-13）: Cloud VM・`ubuntu-latest` Actions とも `m.site777.jp` が **HTTP 403**。Mac からの取得のみ成功。  
+DMM ぱちタウン（中山UNO jackpot）: **シェル＋ランキング画像は Cloud 200**。台番号別表の実体 P'sCUBE は **Cloudflare 403**（2026-11-14）。Mac で Site Seven と併用。
 
-| 経路 | 取得（Site Seven） | 分析・Pages |
-| --- | --- | --- |
-| Mac Cursor worker（優先） | 可 | 可 |
-| Mac keepalive / launchd（`tools/mac_keepalive_fetch.sh`） | 可（Mac 起床中） | `--publish` で可 |
-| Mac self-hosted Actions（`Prefetch ranks (Mac self-hosted)`） | 可（runner 生存時） | workflow 内で HTML 更新 |
-| Cloud worker alone | **不可（403）** | 既存 CSV があれば分析・publish のみ可 |
-| ubuntu Actions（`Prefetch ranks (ubuntu probe)`） | **不可（監視用）** | 失敗で `last.json` は潰さない |
+| 経路 | 取得（Site Seven） | DMM/PSCUBE（UNO） | 分析・Pages |
+| --- | --- | --- | --- |
+| Mac Cursor worker（優先） | 可 | 可（想定） | 可 |
+| Mac keepalive / launchd（`tools/mac_keepalive_fetch.sh`） | 可（Mac 起床中） | UNO で `fetch_dmm_ptown`＋merge | `--publish` で可 |
+| Mac self-hosted Actions（`Prefetch ranks (Mac self-hosted)`） | 可（runner 生存時） | 同上を Mac で | workflow 内で HTML 更新 |
+| Cloud worker alone | **不可（403）** | シェル/画像のみ（PSCUBE 不可） | 既存 CSV があれば分析・publish のみ可 |
+| ubuntu Actions（`Prefetch ranks (ubuntu probe)`） | **不可（監視用）** | 同上 | 失敗で `last.json` は潰さない |
 
 1. スマホ・Remote では **まず Mac / PC Agent**（self-hosted worker）。
 2. Mac worker が落ちていても Mac 本体が起きていれば:

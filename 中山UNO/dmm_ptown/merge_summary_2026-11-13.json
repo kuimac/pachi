@@ -1,0 +1,14 @@
+{
+  "store": "中山UNO",
+  "day": "2026-11-13",
+  "merged_at": "2026-11-14 08:27",
+  "site777_rows": 208,
+  "pscube_rows": 0,
+  "install_rows": 0,
+  "merged_rows": 208,
+  "both": 0,
+  "site777_only": 208,
+  "pscube_only": 0,
+  "csv": "中山UNO/dmm_ptown/全台データ_merged_2026-11-13.csv",
+  "policy": "site777_preferred_numeric; pscube_fills_gaps; no_blind_replace"
+}

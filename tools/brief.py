@@ -41,6 +41,11 @@ GUIDE_ALIASES = {
     "はじまりの記憶": "e 新世紀エヴァンゲリオン ～はじまりの記憶～",
     "アグネスプレミア": "PA大海物語Withアグネス・ラム Premium Edition",
     "大海物語アグネスプレミア": "PA大海物語Withアグネス・ラム Premium Edition",
+    "大海物語5 hcl": "P大海物語５ HCL",
+    "大海物語５ hcl": "P大海物語５ HCL",
+    "ニュートキオv1": "PニュートキオV1",
+    "大海物語5 arbc": "PA大海物語５ ARBC",
+    "大海物語５ arbc": "PA大海物語５ ARBC",
 }
 
 
@@ -161,9 +166,16 @@ def load_guides() -> dict[str, dict]:
             m = re.search(r"\|\s*天井\s*\|\s*([^|]+)\|", text)
             if m:
                 meta["ceiling"] = _prefer_text(meta["ceiling"], m.group(1))
+            m = re.search(r"\|\s*型式名\s*\|\s*([^|]+)\|", text)
+            if m:
+                formal = m.group(1).strip()
+                meta["formal"] = formal
             guides[path.stem] = meta
             guides[norm(path.stem)] = meta
             guides[norm(meta["name"])] = meta
+            if meta.get("formal"):
+                guides[norm(meta["formal"])] = meta
+                guides[meta["formal"]] = meta
     return guides
 
 

@@ -3188,17 +3188,44 @@ def table_html(fieldnames: list[str], rows: list[dict[str, str]]) -> str:
     )
 
 
-def history_html(rows: list[dict[str, str]]) -> str:
-    days: list[tuple[str, str, list[dict[str, str]]]] = []
+def history_rows_newest_first(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """大当り履歴を新しい日付・新しい当りが上になるよう並べる。"""
+    by_day: dict[str, list[dict[str, str]]] = {}
+    day_meta: dict[str, str] = {}
     for row in rows:
-        if not days or days[-1][0] != row.get("日付", ""):
-            days.append((row.get("日付", ""), row.get("相対日", ""), []))
-        days[-1][2].append(row)
+        day = (row.get("日付") or "").strip()
+        if not day:
+            continue
+        by_day.setdefault(day, []).append(row)
+        if row.get("相対日"):
+            day_meta[day] = row.get("相対日", "")
+    ordered: list[dict[str, str]] = []
+    for day in sorted(by_day, reverse=True):
+        items = by_day[day]
+        closing = [item for item in items if item.get("回数") in {"-", "—", ""}]
+        hits = [item for item in items if item.get("回数") not in {"-", "—", ""}]
+        hits.sort(key=lambda item: to_int(item.get("回数")) or 0, reverse=True)
+        # 日内も新しい当りが上。最終スタート行は日の先頭に残す。
+        ordered.extend(closing[:1] + hits + closing[1:])
+    return ordered
+
+
+def history_html(rows: list[dict[str, str]]) -> str:
+    """日付ブロックも日内の当りも新しいものが上。先頭2日を開く。"""
+    by_day: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        day = (row.get("日付") or "").strip()
+        if not day:
+            continue
+        by_day.setdefault(day, []).append(row)
+    days = sorted(by_day, reverse=True)
     blocks = []
-    for index, (date, relative, items) in enumerate(days):
-        closing = next((item for item in items if item.get("回数") == "-"), None)
-        hits = [item for item in items if item.get("回数") not in ("-", "")]
-        hits.sort(key=lambda item: to_int(item.get("回数")) or 0)
+    for index, date in enumerate(days):
+        items = by_day[date]
+        relative = next((item.get("相対日", "") for item in items if item.get("相対日")), "")
+        closing = next((item for item in items if item.get("回数") in {"-", "—"}), None)
+        hits = [item for item in items if item.get("回数") not in {"-", "—", ""}]
+        hits.sort(key=lambda item: to_int(item.get("回数")) or 0, reverse=True)
         close_text = fmt_cell("スタート", closing.get("スタート", "")) if closing else "—"
         summary = (
             f"{fmt_date(date)} {relative} · 当り {len(hits)}回 · 最終スタート {close_text}"
@@ -3214,7 +3241,7 @@ def history_html(rows: list[dict[str, str]]) -> str:
             )
         if not body_rows:
             body_rows.append('<tr><td colspan="3">当りなし</td></tr>')
-        opened = " open" if index >= len(days) - 2 else ""
+        opened = " open" if index < 2 else ""
         blocks.append(
             f"<details{opened}><summary>{escape(summary)}</summary>"
             '<div class="table-wrap"><table class="sheet"><thead><tr>'
@@ -3674,7 +3701,8 @@ def build_csv_page(
     if source.stem == "大当り履歴データ":
         data = (
             '<p class="section-label">日付ごとの当り</p>'
-            "<p>回数の「-」は、その日の最終スタートとして上の行にまとめています。時刻は当日の当り時刻です。</p>"
+            "<p>新しい日付が上。各日内も新しい当りが上。"
+            "回数の「-」は、その日の最終スタートです。時刻は当日の当り時刻です。</p>"
             + history_html(rows)
         )
     else:
@@ -3754,7 +3782,8 @@ def build_unit_page(
         _, history_rows = read_csv(files["大当り履歴データ"])
         history = (
             '<p class="section-label">大当り履歴</p>'
-            "<p>当日と前日を開いています。回数の「-」は最終スタートです。</p>"
+            "<p>新しい日付が上（先頭2日を開く）。各日内も新しい当りが上。"
+            "回数の「-」は最終スタートです。</p>"
             + history_html(history_rows)
         )
     daily = table_html(fieldnames, rows) if rows else ""

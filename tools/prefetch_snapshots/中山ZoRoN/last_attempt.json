@@ -1,0 +1,16 @@
+{
+  "ok": false,
+  "paywall": false,
+  "period": "",
+  "rate_labels": [],
+  "row_count": 0,
+  "columns_ok": false,
+  "units": [],
+  "machines": [],
+  "error": "http=403 HTTP Error 403: Forbidden",
+  "fetched_at": "2026-11-14 01:14",
+  "url": "https://m.site777.jp/f/D0900.do?pmc=13003032&clc=01",
+  "http_code": 403,
+  "store": "中山ZoRoN",
+  "day": "2026-11-14"
+}

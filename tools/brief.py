@@ -221,6 +221,24 @@ def short_flag(value: str | None) -> str:
     return text
 
 
+def feature_present(value: str | None) -> bool:
+    """天井・遊タイムが搭載扱い（非搭載・なし・調査中は除外）。"""
+    text = (value or "").strip()
+    if not text or text in {"—", "-", "なし", "無し"}:
+        return False
+    if "非搭載" in text or text.startswith("非"):
+        return False
+    if "調査中" in text or text in {"不明", "未確認"}:
+        return False
+    return True
+
+
+def has_ceiling_or_yutime(guide: dict | None) -> bool:
+    if not guide:
+        return False
+    return feature_present(guide.get("ceiling")) or feature_present(guide.get("yutime"))
+
+
 def find_dated_csv(store: str, kind: str, day: str | None) -> Path | None:
     """kind は 全台データ / 出玉ランキング。店フォルダを日付フォルダより優先。"""
     patterns = []

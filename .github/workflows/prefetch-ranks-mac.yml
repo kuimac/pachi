@@ -1,0 +1,128 @@
+name: Prefetch ranks (Mac self-hosted)
+
+# Site Seven は Cloud / ubuntu-latest から 403 になりやすい。
+# Mac の住宅 IP で取得する。runner 未接続ならジョブは待ち→失敗するだけ（ubuntu 側は別 workflow）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      store:
+        description: Store to fetch (all or canonical name)
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - 中山UNO
+          - 中山ZoRoN
+          - エスパス日拓西武新宿駅前店
+          - 楽園町田店
+          - 楽園渋谷駅前店
+          - 楽園渋谷道玄坂店
+          - エスパス日拓渋谷駅前新館
+      mode:
+        description: morning=必須の無料データ差分 / adhoc=随時
+        required: true
+        default: adhoc
+        type: choice
+        options:
+          - morning
+          - adhoc
+      also_all_units:
+        description: 全台データも取得する
+        required: true
+        default: true
+        type: boolean
+  schedule:
+    # 08:15 / 12:10 / 17:10 JST（Mac が起きて runner が生きていれば取得）
+    - cron: "15 23 * * *"
+    - cron: "10 3 * * *"
+    - cron: "10 8 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prefetch-ranks-mac
+  cancel-in-progress: false
+
+jobs:
+  prefetch-mac:
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve inputs
+        id: args
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            HOUR_UTC="$(date -u +%H)"
+            if [[ "$HOUR_UTC" == "23" ]]; then
+              echo "mode=morning" >> "$GITHUB_OUTPUT"
+            else
+              echo "mode=adhoc" >> "$GITHUB_OUTPUT"
+            fi
+            echo "store=all" >> "$GITHUB_OUTPUT"
+            echo "also_all_units=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+            echo "store=${{ inputs.store }}" >> "$GITHUB_OUTPUT"
+            echo "also_all_units=${{ inputs.also_all_units }}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "day=$(TZ=Asia/Tokyo date +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Prefetch free ranks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/prefetch_ranks.py \
+            --store "${{ steps.args.outputs.store }}" \
+            --mode "${{ steps.args.outputs.mode }}" \
+            --day "${{ steps.args.outputs.day }}"
+
+      - name: Prefetch all units
+        if: steps.args.outputs.also_all_units == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/fetch_site777_all_units.py \
+            --store "${{ steps.args.outputs.store }}" \
+            --day "${{ steps.args.outputs.day }}"
+
+      - name: Refresh Pages HTML from CSV
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/update_guide_installs.py || true
+          python3 tools/build_html.py
+
+      - name: Commit CSV, snapshots, Pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            '*/出玉ランキング_*.csv' \
+            '*/全台データ_*.csv' \
+            '*/無料データ差分.md' \
+            'tools/prefetch_snapshots/*/last.json' \
+            'tools/prefetch_snapshots/*/last_attempt.json' \
+            'tools/prefetch_snapshots/*/site777_all_units_last.json' \
+            'tools/prefetch_snapshots/*/site777_all_units_last_attempt.json' \
+            'docs/' \
+            '攻略情報/' \
+            || true
+          git reset HEAD -- 'プレイ履歴.local.md' '.cache' 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          DAY="${{ steps.args.outputs.day }}"
+          MODE="${{ steps.args.outputs.mode }}"
+          STORE="${{ steps.args.outputs.store }}"
+          git commit -m "Prefetch ranks+units (Mac) ${DAY} ${MODE} (${STORE})"
+          git push origin HEAD

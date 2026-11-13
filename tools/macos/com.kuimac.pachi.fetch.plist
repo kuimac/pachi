@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mac が起きているあいだ、1時間おきに Site Seven 無料取得する launchd 例。
+  インストール（パスを自分の clone に合わせる）:
+
+    cp tools/macos/com.kuimac.pachi.fetch.plist ~/Library/LaunchAgents/
+    # 編集: WorkingDirectory / ProgramArguments の /PATH/TO/pachi を実パスへ
+    launchctl load ~/Library/LaunchAgents/com.kuimac.pachi.fetch.plist
+
+  スリープ中は動かない。電源接続 + スリープ抑止（caffeinate / 設定）が必要。
+  Cursor worker が落ちていても、この plist だけで取得→push までできる。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.kuimac.pachi.fetch</string>
+  <key>WorkingDirectory</key>
+  <string>/PATH/TO/pachi</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/PATH/TO/pachi/tools/mac_keepalive_fetch.sh</string>
+    <string>--store</string>
+    <string>all</string>
+    <string>--publish</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>3600</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/pachi-fetch.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/pachi-fetch.err</string>
+</dict>
+</plist>

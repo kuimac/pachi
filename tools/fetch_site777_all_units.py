@@ -279,9 +279,13 @@ def main() -> int:
             time.sleep(args.sleep)
         result = process_store(name, day, args.sleep)
         (snap / name).mkdir(parents=True, exist_ok=True)
-        (snap / name / "site777_all_units_last.json").write_text(
-            json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
+        payload = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
+        # 失敗で成功スナップショットを潰さない（Cloud/GHA の 403 対策）
+        (snap / name / "site777_all_units_last_attempt.json").write_text(payload, encoding="utf-8")
+        if result.get("ok"):
+            (snap / name / "site777_all_units_last.json").write_text(payload, encoding="utf-8")
+        else:
+            print(f"[snap] {name}: keep site777_all_units_last.json (attempt failed)")
         print(json.dumps({k: result[k] for k in ("store", "ok", "units", "models", "csv")}, ensure_ascii=False))
         if not result.get("ok"):
             failures += 1

@@ -8,7 +8,9 @@ import json
 import os
 import re
 import shutil
+import sys
 import unicodedata
+from collections import defaultdict
 from datetime import datetime
 from html import escape, unescape
 from pathlib import Path
@@ -16,6 +18,14 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import markdown
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from brief import (  # noqa: E402
+    has_ceiling_or_yutime,
+    load_guides as load_guide_meta,
+    match_guide,
+    short_flag,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs"
@@ -3655,6 +3665,105 @@ def raw_data_nav_html(
     )
 
 
+_GUIDE_META_CACHE: dict[str, dict] | None = None
+
+
+def guide_meta_map() -> dict[str, dict]:
+    global _GUIDE_META_CACHE
+    if _GUIDE_META_CACHE is None:
+        _GUIDE_META_CACHE = load_guide_meta()
+    return _GUIDE_META_CACHE
+
+
+def ceiling_machines_for_store(store: str) -> list[dict[str, object]]:
+    """最新全台CSVに台がある機種のうち、天井または遊タイム搭載だけ返す。"""
+    csv_path = find_dated_csv(store, ALL_UNITS_KIND)
+    if csv_path is None:
+        return []
+    _, rows = read_csv(csv_path)
+    counts: dict[str, int] = defaultdict(int)
+    for row in rows:
+        model = (row.get("機種") or "").strip()
+        if model:
+            counts[model] += 1
+    if not counts:
+        return []
+    guides = guide_meta_map()
+    day = csv_day_key(csv_path)
+    meta = resolve_fetch_meta(store, day, ALL_UNITS_KIND) if day else {}
+    out: list[dict[str, object]] = []
+    for model in sorted(counts):
+        guide = match_guide(model, guides)
+        if not has_ceiling_or_yutime(guide):
+            continue
+        out.append(
+            {
+                "model": model,
+                "count": counts[model],
+                "ceiling": short_flag(guide.get("ceiling") if guide else None),
+                "yutime": short_flag(guide.get("yutime") if guide else None),
+                "guide_name": (guide or {}).get("name") or "",
+                "csv_day": day,
+                "fetched_at": meta.get("fetched_at") or "",
+            }
+        )
+    return out
+
+
+def ceiling_list_html(
+    dest: Path,
+    store: str,
+    guides: dict[str, Path] | None = None,
+) -> str:
+    """店舗ハブ用: 天井・遊タイム機の機種名一覧（攻略リンク付き）。台が無い店は空文字。"""
+    rows = ceiling_machines_for_store(store)
+    if not rows:
+        return ""
+    guides = guides or {}
+    day = str(rows[0].get("csv_day") or "")
+    fetched = str(rows[0].get("fetched_at") or "")
+    note_bits = [f"最新全台データ {date_label(day)}" if day else "最新全台データ"]
+    if fetched:
+        note_bits.append(f"取得日時 {fetched}")
+    note_bits.append("設置台がある機種のみ。天井・遊タイム非搭載と調査中は載せない")
+    body_rows: list[str] = []
+    for row in rows:
+        model = str(row["model"])
+        guide_name = str(row.get("guide_name") or "")
+        guide_path = guides.get(site_name(guide_name)) if guide_name else None
+        if guide_path is None and guide_name:
+            # site_name 揺れ用のフォールバック
+            guide_path = guides.get(site_name(model)) or guides.get(model)
+        if guide_path is not None:
+            name_html = (
+                f'<a class="machine-link" href="{href(dest, guide_path)}">'
+                f"{escape(model)}</a>"
+            )
+        else:
+            name_html = escape(model)
+        body_rows.append(
+            "<tr>"
+            f"<td>{name_html}</td>"
+            f'<td class="num">{int(row["count"])}</td>'
+            f"<td>{escape(str(row['ceiling']))}</td>"
+            f"<td>{escape(str(row['yutime']))}</td>"
+            "</tr>"
+        )
+    table = (
+        '<div class="table-wrap"><table class="sheet">'
+        "<thead><tr>"
+        "<th>機種</th><th class=\"num\">台数</th><th>天井</th><th>遊タイム</th>"
+        "</tr></thead><tbody>"
+        + "".join(body_rows)
+        + "</tbody></table></div>"
+    )
+    return (
+        '<p class="section-label" id="ceiling">天井・遊タイム機</p>'
+        f'<p class="section-note">{escape(" · ".join(note_bits))}</p>'
+        f"{table}"
+    )
+
+
 def build_raw_csv_page(
     source: Path,
     dest: Path,
@@ -4243,6 +4352,7 @@ def build_store_hub(
     station: str = "",
     judgments: list[tuple[str, list[tuple[str, str, Path, str]]]] | None = None,
     data_pages: dict[str, Path] | None = None,
+    guides: dict[str, Path] | None = None,
 ) -> Path:
     """店舗ページ。当日の判断は追っかけ、過去日はスナップショットとして分ける。"""
     dest = OUT / "店舗" / store / "index.html"
@@ -4302,6 +4412,7 @@ def build_store_hub(
     )
     info = store_info_html(store, dest, OUT / "店舗一覧.html")
     raw_nav = raw_data_nav_html(dest, store, pages=data_pages)
+    ceiling_nav = ceiling_list_html(dest, store, guides=guides)
     machine_html = machine_sections_html(dest, machines, store=store) if machines else ""
     machines_block = (
         f'<p class="section-label" id="machines">台データ</p>'
@@ -4312,11 +4423,12 @@ def build_store_hub(
     search_pairs = [("today", "today-cards"), ("past", "past-cards")]
     if machine_html:
         search_pairs.append(("machines", "machine-list"))
+    ceiling_block = f"{ceiling_nav}\n" if ceiling_nav else ""
     body = f"""
 <h1>{escape(store)}</h1>
 {place_html}
 {raw_nav}
-{info}
+{ceiling_block}{info}
 <input class="search" id="q" type="search" placeholder="日付、判断名、台番号、機種名" autocomplete="off">
 <p id="empty" class="empty" hidden>一致するページがありません。</p>
 <p class="section-label" id="today">当日の判断（{len(today_cards)}件）</p>
@@ -4728,8 +4840,9 @@ def build_index(
 
 
 def main() -> None:
-    global _PLAY_CACHE
+    global _PLAY_CACHE, _GUIDE_META_CACHE
     _PLAY_CACHE = None
+    _GUIDE_META_CACHE = None
     for path in OUT.rglob("*.html"):
         path.unlink()
 
@@ -5036,6 +5149,7 @@ def main() -> None:
             stations.get(store) or guess_station(store),
             store_judgments.get(store, []),
             store_data_pages.get(store),
+            guides=guide_out,
         )
         if analyses:
             latest = max(analyses, key=lambda row: row[0])

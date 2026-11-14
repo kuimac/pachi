@@ -1684,9 +1684,10 @@ def rotation_calc_markup(compact: bool = False) -> str:
     """1000円あたり回転数の入力 UI。compact=True はトップ埋め込み用。"""
     note = (
         '<p class="calc-note">通常時だけ数える。電サポ中は入れない。'
-        "4円・100円25玉なら、玉250＝現金1000円。</p>"
+        "4円・100円25玉なら玉250＝現金1000円。"
+        "中貸（500円/115玉）は <strong>+115</strong> で足す。</p>"
         if not compact
-        else '<p class="calc-note">通常時のみ。(現在−初期) ÷ (玉数÷250)</p>'
+        else '<p class="calc-note">通常時のみ。(現在−初期) ÷ (玉数÷250)。中貸は+115。</p>'
     )
     return f"""
 <section class="calc" id="rotation-calc" aria-labelledby="calc-title">
@@ -1702,8 +1703,10 @@ def rotation_calc_markup(compact: bool = False) -> str:
     <label class="calc-field">
       <span>使った玉数</span>
       <div class="calc-row">
-        <input id="calc-balls" type="number" inputmode="decimal" step="125" min="0" placeholder="例 250" autocomplete="off">
+        <input id="calc-balls" type="number" inputmode="decimal" step="1" min="0" placeholder="例 250" autocomplete="off">
+        <button type="button" class="calc-btn" data-add-balls="115" title="115玉を足す（500円/115玉）">+115</button>
         <button type="button" class="calc-btn" data-add-balls="125" title="125玉を足す">+125</button>
+        <button type="button" class="calc-btn" data-reset-rotation title="入力をリセット">リセット</button>
       </div>
     </label>
     <label class="calc-field">
@@ -1776,11 +1779,21 @@ def rotation_calc_markup(compact: bool = False) -> str:
     el.addEventListener('change', render);
   }});
 
-  document.querySelectorAll('[data-add-balls]').forEach((btn) => {{
+  document.querySelectorAll('#rotation-calc [data-add-balls]').forEach((btn) => {{
     btn.addEventListener('click', () => {{
       const base = num(balls) ?? 0;
       balls.value = String(base + Number(btn.dataset.addBalls));
       balls.focus();
+      render();
+    }});
+  }});
+
+  document.querySelectorAll('#rotation-calc [data-reset-rotation]').forEach((btn) => {{
+    btn.addEventListener('click', () => {{
+      initial.value = '';
+      balls.value = '';
+      current.value = '';
+      initial.focus();
       render();
     }});
   }});

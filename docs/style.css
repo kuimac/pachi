@@ -633,6 +633,7 @@ summary::-webkit-details-marker { color: var(--accent); }
 }
 .calc-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   align-items: stretch;
 }

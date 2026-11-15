@@ -1683,19 +1683,26 @@ def table_sort_script() -> str:
 
 
 def rotation_calc_markup(compact: bool = False) -> str:
-    """1000円あたり回転数の入力 UI。compact=True はトップ埋め込み用。"""
+    """回転率の入力 UI。compact=True はトップ埋め込み用。
+
+    玉単位は切替: 250（通常1000円）/ 230（中貸1000円）/ 115（中貸500円）。
+    """
     note = (
-        '<p class="calc-note">通常時だけ数える。電サポ中は入れない。'
-        "4円・100円25玉なら玉250＝現金1000円。"
-        "中貸（500円/115玉）は <strong>+115</strong> で足す。</p>"
+        '<p class="calc-note" id="calc-note">通常時だけ数える。電サポ中は入れない。'
+        "単位を切り替えて、通常貸・中貸のどちらでも同じ式で出す。</p>"
         if not compact
-        else '<p class="calc-note">通常時のみ。(現在−初期) ÷ (玉数÷250)。中貸は+115。</p>'
+        else '<p class="calc-note" id="calc-note">通常時のみ。(現在−初期) ÷ (玉数÷単位)。単位は下で切替。</p>'
     )
     return f"""
 <section class="calc" id="rotation-calc" aria-labelledby="calc-title">
   <div class="calc-head">
     <h2 id="calc-title">回転率計算</h2>
-    <p class="calc-formula"><code>(現在スタート − 初期スタート) ÷ (玉数 ÷ 250)</code></p>
+    <p class="calc-formula" id="calc-formula"><code>(現在スタート − 初期スタート) ÷ (玉数 ÷ 250)</code></p>
+  </div>
+  <div class="calc-mode" role="group" aria-label="玉数の単位">
+    <button type="button" class="calc-mode-btn is-active" data-unit-balls="250" data-unit-yen="1000" title="通常貸 100円/25玉 → 250玉＝1000円">250玉（通常・1000円）</button>
+    <button type="button" class="calc-mode-btn" data-unit-balls="230" data-unit-yen="1000" title="中貸 500円/115玉 → 230玉＝1000円">230玉（中貸・1000円）</button>
+    <button type="button" class="calc-mode-btn" data-unit-balls="115" data-unit-yen="500" title="中貸 500円/115玉">115玉（中貸・500円）</button>
   </div>
   <div class="calc-grid">
     <label class="calc-field">
@@ -1708,6 +1715,7 @@ def rotation_calc_markup(compact: bool = False) -> str:
         <input id="calc-balls" type="number" inputmode="decimal" step="1" min="0" placeholder="例 250" autocomplete="off">
         <button type="button" class="calc-btn" data-add-balls="115" title="115玉を足す（500円/115玉）">+115</button>
         <button type="button" class="calc-btn" data-add-balls="125" title="125玉を足す">+125</button>
+        <button type="button" class="calc-btn" data-add-balls="230" title="230玉を足す（中貸1000円）" hidden>+230</button>
         <button type="button" class="calc-btn" data-reset-rotation title="入力をリセット">リセット</button>
       </div>
     </label>
@@ -1719,7 +1727,7 @@ def rotation_calc_markup(compact: bool = False) -> str:
   <div class="calc-result" aria-live="polite">
     <div class="stat">
       <b id="calc-rate">—</b>
-      <span>1000円あたり回転数</span>
+      <span id="calc-rate-label">1000円あたり回転数</span>
     </div>
     <div class="stat">
       <b id="calc-diff">—</b>
@@ -1727,7 +1735,7 @@ def rotation_calc_markup(compact: bool = False) -> str:
     </div>
     <div class="stat">
       <b id="calc-units">—</b>
-      <span>使った1000円単位</span>
+      <span id="calc-units-label">使った1000円単位</span>
     </div>
   </div>
   {note}
@@ -1740,7 +1748,15 @@ def rotation_calc_markup(compact: bool = False) -> str:
   const rateEl = document.getElementById('calc-rate');
   const diffEl = document.getElementById('calc-diff');
   const unitsEl = document.getElementById('calc-units');
-  if (!initial || !balls || !current || !rateEl) return;
+  const rateLabel = document.getElementById('calc-rate-label');
+  const unitsLabel = document.getElementById('calc-units-label');
+  const formulaEl = document.getElementById('calc-formula');
+  const modeBtns = [...document.querySelectorAll('#rotation-calc [data-unit-balls]')];
+  if (!initial || !balls || !current || !rateEl || !modeBtns.length) return;
+
+  const STORAGE_KEY = 'pachi-rotation-unit';
+  let unitBalls = 250;
+  let unitYen = 1000;
 
   const num = (el) => {{
     const v = el.value.trim();
@@ -1755,6 +1771,37 @@ def rotation_calc_markup(compact: bool = False) -> str:
     return fixed.replace(/\\.0+$/, '').replace(/(\\.[0-9]*?)0+$/, '$1');
   }};
 
+  const applyModeChrome = () => {{
+    modeBtns.forEach((btn) => {{
+      const on = Number(btn.dataset.unitBalls) === unitBalls;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }});
+    if (formulaEl) {{
+      formulaEl.innerHTML = `<code>(現在スタート − 初期スタート) ÷ (玉数 ÷ ${{unitBalls}})</code>`;
+    }}
+    if (rateLabel) rateLabel.textContent = `${{unitYen}}円あたり回転数`;
+    if (unitsLabel) unitsLabel.textContent = `使った${{unitYen}}円単位`;
+    if (balls) balls.placeholder = `例 ${{unitBalls}}`;
+    document.querySelectorAll('#rotation-calc [data-add-balls]').forEach((btn) => {{
+      const add = Number(btn.dataset.addBalls);
+      if (add === 230) btn.hidden = unitBalls !== 230 && unitBalls !== 115;
+      if (add === 125) btn.hidden = unitBalls === 115 || unitBalls === 230;
+      if (add === 115) btn.hidden = false;
+      btn.classList.toggle('primary', add === unitBalls || (unitBalls === 250 && add === 125));
+    }});
+  }};
+
+  const setMode = (nextBalls, nextYen) => {{
+    unitBalls = nextBalls;
+    unitYen = nextYen;
+    applyModeChrome();
+    try {{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({{ balls: unitBalls, yen: unitYen }}));
+    }} catch (_) {{}}
+    render();
+  }};
+
   const render = () => {{
     const a = num(initial);
     const b = num(balls);
@@ -1767,18 +1814,26 @@ def rotation_calc_markup(compact: bool = False) -> str:
       return;
     }}
     const diff = c - a;
-    const units = b / 250;
+    const units = b / unitBalls;
     const rate = diff / units;
     diffEl.textContent = fmt(diff, 1);
     unitsEl.textContent = fmt(units, 2);
     rateEl.textContent = fmt(rate, 1);
-    rateEl.parentElement.classList.toggle('good', rate >= 18);
-    rateEl.parentElement.classList.toggle('bad', rate > 0 && rate < 16);
+    // 500円単位のときはボーダー比較用に1000円換算の目安も色判定へ（×2）
+    const ratePer1000 = unitYen === 500 ? rate * 2 : rate;
+    rateEl.parentElement.classList.toggle('good', ratePer1000 >= 18);
+    rateEl.parentElement.classList.toggle('bad', ratePer1000 > 0 && ratePer1000 < 16);
   }};
 
   [initial, balls, current].forEach((el) => {{
     el.addEventListener('input', render);
     el.addEventListener('change', render);
+  }});
+
+  modeBtns.forEach((btn) => {{
+    btn.addEventListener('click', () => {{
+      setMode(Number(btn.dataset.unitBalls), Number(btn.dataset.unitYen));
+    }});
   }});
 
   document.querySelectorAll('#rotation-calc [data-add-balls]').forEach((btn) => {{
@@ -1799,6 +1854,16 @@ def rotation_calc_markup(compact: bool = False) -> str:
       render();
     }});
   }});
+
+  try {{
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (saved && Number(saved.balls) > 0) {{
+      const yen = Number(saved.yen) > 0 ? Number(saved.yen) : (Number(saved.balls) === 115 ? 500 : 1000);
+      unitBalls = Number(saved.balls);
+      unitYen = yen;
+    }}
+  }} catch (_) {{}}
+  applyModeChrome();
   render();
 }})();
 </script>

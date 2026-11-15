@@ -638,6 +638,34 @@ summary::-webkit-details-marker { color: var(--accent); }
   align-items: stretch;
 }
 .calc-row input { flex: 1 1 auto; min-width: 0; }
+.calc-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.calc-mode-btn {
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 9.5rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+}
+.calc-mode-btn:hover { border-color: var(--accent); color: var(--accent); }
+.calc-mode-btn.is-active {
+  background: var(--nav);
+  border-color: var(--nav);
+  color: #f6f1e8;
+}
+.calc-mode-btn.is-active:hover { color: #ffd7a8; }
 .calc-btn {
   appearance: none;
   flex: 0 0 auto;

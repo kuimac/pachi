@@ -26,6 +26,7 @@ from brief import (  # noqa: E402
     match_guide,
     short_flag,
 )
+from enrich_payout_odds import pick_avg_payout, strip_section  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs"
@@ -1622,6 +1623,26 @@ def _parse_pct_cell(raw: str) -> float | None:
     return float(m.group(1))
 
 
+def _compute_ev_balls(
+    text: str, entry_pct: float | None, continue_pct: float | None
+) -> float | None:
+    """初当り1回あたり期待出玉（玉）の近似。
+
+    突入率 × 代表出玉 ÷ (1−継続率)。攻略の「出玉確率／期待出玉」と同じ幾何近似。
+    算出不能は None。
+    """
+    clean = strip_section(text)
+    avg = pick_avg_payout(clean)
+    if entry_pct is None or continue_pct is None or avg is None:
+        return None
+    c = continue_pct / 100.0
+    if c >= 1.0:
+        c = 0.999
+    if c < 0.0 or avg <= 0:
+        return None
+    return (entry_pct / 100.0) * avg / (1.0 - c)
+
+
 def collect_guide_spec_rows() -> list[dict[str, object]]:
     """全攻略MDからスペック一覧用の行を集める。"""
     skip = {"パチンコ用語一覧.md", "オカルトパチンコ動作一覧.md"}
@@ -1671,9 +1692,11 @@ def collect_guide_spec_rows() -> list[dict[str, object]]:
         entry = odds_pct("ラッシュ突入率")
         if entry is None:
             entry = rates.get("entry_pct")
+        cont = rates.get("continue_pct")
         p10 = odds_pct("1万発出る確率")
         p30 = odds_pct("3万発出る確率")
         p50 = odds_pct("5万発出る確率")
+        ev = _compute_ev_balls(text, entry, cont)
 
         rows.append(
             {
@@ -1683,9 +1706,10 @@ def collect_guide_spec_rows() -> list[dict[str, object]]:
                 "type": type_val,
                 "first_hit_den": rates.get("first_hit_den"),
                 "entry_pct": entry,
-                "continue_pct": rates.get("continue_pct"),
+                "continue_pct": cont,
                 "border_eq": border_num(eq),
                 "border_28": border_num(b28),
+                "ev_balls": round(ev) if ev is not None else None,
                 "p10": p10,
                 "p30": p30,
                 "p50": p50,
@@ -1695,7 +1719,14 @@ def collect_guide_spec_rows() -> list[dict[str, object]]:
                 "tags": ", ".join(spec_tags(text)) or "—",
             }
         )
-    rows.sort(key=lambda r: str(r["name"]))
+    # デフォルト: 期待値が高い順（空欄は末尾）
+    rows.sort(
+        key=lambda r: (
+            0 if r.get("ev_balls") is not None else 1,
+            -(float(r["ev_balls"]) if r.get("ev_balls") is not None else 0.0),
+            str(r["name"]),
+        )
+    )
     return rows
 
 
@@ -1743,6 +1774,7 @@ def build_specs_list_page(guide_out: dict[str, Path]) -> Path:
         co_t, co_n = fmt_num(row["continue_pct"], "%")
         eq_t, eq_n = fmt_num(row["border_eq"])
         b28_t, b28_n = fmt_num(row["border_28"])
+        ev_t, ev_n = fmt_num(row["ev_balls"])
         p10_t, p10_n = fmt_num(row["p10"], "%")
         p30_t, p30_n = fmt_num(row["p30"], "%")
         p50_t, p50_n = fmt_num(row["p50"], "%")
@@ -1763,6 +1795,7 @@ def build_specs_list_page(guide_out: dict[str, Path]) -> Path:
             f"{cell(co_t, co_n)}"
             f"{cell(eq_t, eq_n)}"
             f"{cell(b28_t, b28_n)}"
+            f"{cell(ev_t, ev_n)}"
             f"{cell(p10_t, p10_n)}"
             f"{cell(p30_t, p30_n)}"
             f"{cell(p50_t, p50_n)}"
@@ -1787,6 +1820,7 @@ def build_specs_list_page(guide_out: dict[str, Path]) -> Path:
                 "continue_pct",
                 "border_eq",
                 "border_28",
+                "ev_balls",
                 "p10",
                 "p30",
                 "p50",
@@ -1805,6 +1839,7 @@ def build_specs_list_page(guide_out: dict[str, Path]) -> Path:
   const input = document.getElementById('spec-filter');
   const body = document.querySelector('#specs-table tbody');
   const count = document.getElementById('spec-count');
+  const btn = document.getElementById('spec-sort-ev');
   if (!input || !body) return;
   const rows = [...body.rows];
   const update = () => {
@@ -1825,17 +1860,31 @@ def build_specs_list_page(guide_out: dict[str, Path]) -> Path:
     if (count) count.textContent = String(shown);
   };
   input.addEventListener('input', update);
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const th = document.getElementById('spec-ev-th');
+      if (!th) return;
+      // 高い順を明示: 強制で desc へ
+      delete th.dataset.sort;
+      th.dataset.sortPref = 'desc';
+      th.click();
+      if (th.dataset.sort !== 'desc') th.click();
+    });
+  }
   update();
 })();
 </script>
 """
 
+    with_ev = sum(1 for r in rows if r.get("ev_balls") is not None)
     body = f"""
 <p class="kicker">攻略情報</p>
 <h1>スペック一覧</h1>
 <p class="section-note">全機種の攻略MDから抽出。列見出しクリックでソート。公開解析の概数。</p>
-<div class="section-tools" style="margin:0.75rem 0 1rem">
+<p class="section-note"><strong>期待値</strong>＝初当り1回あたりの期待出玉（玉）の近似。<code>突入率 × 代表出玉 ÷ (1−継続率)</code>（攻略の「出玉確率／期待出玉」と同じ幾何近似）。等価ボーダーは交換率の目安列（等価BD）として別掲。算出不能は空欄（ソート時は末尾）。現在 {with_ev}/{len(rows)} 機種で算出。</p>
+<div class="section-tools" style="margin:0.75rem 0 1rem; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center">
   <input class="section-filter" id="spec-filter" type="search" placeholder="機種名・タグで絞り込み" autocomplete="off" aria-label="スペック一覧を絞り込み">
+  <button type="button" class="calc-mode-btn" id="spec-sort-ev">期待値が高い順</button>
   <p class="section-note" style="margin:0">表示 <span id="spec-count">{len(rows)}</span> / {len(rows)} 機種</p>
 </div>
 <div class="related">
@@ -1848,6 +1897,7 @@ def build_specs_list_page(guide_out: dict[str, Path]) -> Path:
 <th>機種</th><th>メーカー</th><th>タイプ</th><th>タグ</th>
 <th>初当り</th><th>突入率</th><th>継続率</th>
 <th>等価BD</th><th>28玉BD</th>
+<th id="spec-ev-th" data-sort-pref="desc" data-default-sort="desc" title="初当り1回あたり期待出玉（玉）。クリックで高い順／低い順">期待値↓</th>
 <th>1万発</th><th>3万発</th><th>5万発</th>
 <th>天井</th><th>遊タイム</th><th>LT</th>
 </tr>
@@ -1898,13 +1948,22 @@ def table_sort_script() -> str:
     const body = table.tBodies[0];
     if (!headRow || !body || body.rows.length < 2) return;
     table.classList.add('sortable');
+    const activators = [];
     [...headRow.cells].forEach((th, col) => {
       if (th.colSpan > 1) return;
       th.tabIndex = 0;
       th.setAttribute('role', 'button');
       th.setAttribute('aria-sort', 'none');
-      const activate = () => {
-        const asc = th.dataset.sort !== 'asc';
+      const activate = (forceAsc) => {
+        let asc;
+        if (typeof forceAsc === 'boolean') {
+          asc = forceAsc;
+        } else if (!th.dataset.sort) {
+          // 初回: data-sort-pref="desc" なら高い順から
+          asc = th.dataset.sortPref !== 'desc';
+        } else {
+          asc = th.dataset.sort !== 'asc';
+        }
         [...headRow.cells].forEach((cell) => {
           delete cell.dataset.sort;
           cell.setAttribute('aria-sort', 'none');
@@ -1918,24 +1977,34 @@ def table_sort_script() -> str:
         rows.sort((a, b) => {
           const an = a.value.n;
           const bn = b.value.n;
-          let cmp = 0;
-          if (an != null && bn != null) cmp = an - bn;
-          else if (an != null) cmp = -1;
-          else if (bn != null) cmp = 1;
-          else cmp = a.value.s.localeCompare(b.value.s, 'ja');
+          // 数値欠落（空欄）は昇順・降順どちらでも末尾
+          if (an == null && bn == null) {
+            let cmp = a.value.s.localeCompare(b.value.s, 'ja');
+            if (cmp === 0) cmp = a.index - b.index;
+            return cmp;
+          }
+          if (an == null) return 1;
+          if (bn == null) return -1;
+          let cmp = an - bn;
           if (cmp === 0) cmp = a.index - b.index;
           return asc ? cmp : -cmp;
         });
         rows.forEach(({ row }) => body.appendChild(row));
       };
-      th.addEventListener('click', activate);
+      th.addEventListener('click', () => activate());
       th.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           activate();
         }
       });
+      activators.push({ th, activate });
     });
+    const def = activators.find((x) => x.th.dataset.defaultSort);
+    if (def) {
+      const wantAsc = def.th.dataset.defaultSort === 'asc';
+      def.activate(wantAsc);
+    }
   });
 })();
 </script>

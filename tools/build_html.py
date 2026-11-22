@@ -1613,17 +1613,278 @@ def load_machine_borders() -> list[dict[str, object]]:
     return items
 
 
+def _parse_pct_cell(raw: str) -> float | None:
+    m = re.search(r"(\d+(?:\.\d+)?)\s*%", raw.replace(",", ""))
+    if not m:
+        m = re.search(r"(\d+(?:\.\d+)?)", raw.replace(",", ""))
+        if not m:
+            return None
+    return float(m.group(1))
+
+
+def collect_guide_spec_rows() -> list[dict[str, object]]:
+    """全攻略MDからスペック一覧用の行を集める。"""
+    skip = {"パチンコ用語一覧.md", "オカルトパチンコ動作一覧.md"}
+    rows: list[dict[str, object]] = []
+    seen: set[str] = set()
+    guide_dir = ROOT / "攻略情報"
+    for path in sorted(guide_dir.glob("*.md")):
+        if path.name in skip:
+            continue
+        text = path.read_text(encoding="utf-8")
+        title = title_of(text, path.stem)
+        key = re.sub(r"[:：]", ":", site_name(path.stem)).casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        rates = parse_guide_rates(text)
+        type_val = table_value(text, "タイプ") or "—"
+        maker = table_value(text, "メーカー") or "—"
+        ceiling = table_value(text, "天井") or "—"
+        yutime = table_value(text, "遊タイム") or "—"
+        lt = table_value(text, "ラッキートリガー") or table_value(text, "LT") or "—"
+
+        eq = re.search(r"\|\s*4\.00円（等価）\s*\|\s*([^|]+)\|", text)
+        b28 = re.search(r"\|\s*3\.57円（28玉）\s*\|\s*([^|]+)\|", text)
+
+        def border_num(m: re.Match[str] | None) -> float | None:
+            if not m:
+                return None
+            nums = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", m.group(1))]
+            return nums[0] if nums else None
+
+        # 出玉確率セクション優先
+        odds_block = ""
+        m_odds = re.search(r"## 出玉確率[^\n]*\n(.*?)(\n## |\Z)", text, re.S)
+        if m_odds:
+            odds_block = m_odds.group(1)
+
+        def odds_pct(label: str) -> float | None:
+            mm = re.search(
+                rf"\|\s*{re.escape(label)}[^\|]*\|\s*([^|]+)\|",
+                odds_block or text,
+            )
+            if not mm:
+                return None
+            return _parse_pct_cell(mm.group(1))
+
+        entry = odds_pct("ラッシュ突入率")
+        if entry is None:
+            entry = rates.get("entry_pct")
+        p10 = odds_pct("1万発出る確率")
+        p30 = odds_pct("3万発出る確率")
+        p50 = odds_pct("5万発出る確率")
+
+        rows.append(
+            {
+                "name": title,
+                "stem": path.stem,
+                "maker": maker,
+                "type": type_val,
+                "first_hit_den": rates.get("first_hit_den"),
+                "entry_pct": entry,
+                "continue_pct": rates.get("continue_pct"),
+                "border_eq": border_num(eq),
+                "border_28": border_num(b28),
+                "p10": p10,
+                "p30": p30,
+                "p50": p50,
+                "ceiling": ceiling,
+                "yutime": yutime,
+                "lt": lt,
+                "tags": ", ".join(spec_tags(text)) or "—",
+            }
+        )
+    rows.sort(key=lambda r: str(r["name"]))
+    return rows
+
+
+def build_specs_list_page(guide_out: dict[str, Path]) -> Path:
+    """ソート可能な全機種スペック一覧ページを docs に出す。"""
+    dest = OUT / "攻略情報" / "スペック一覧.html"
+    rows = collect_guide_spec_rows()
+
+    def fmt_num(v: object, suffix: str = "") -> tuple[str, str]:
+        if v is None or v == "":
+            return "—", ""
+        try:
+            n = float(v)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return "—", ""
+        if suffix == "%":
+            text = f"{n:g}%"
+        elif suffix == "1/":
+            text = f"1/{n:g}"
+        else:
+            text = f"{n:g}"
+        return text, f'{n:g}'
+
+    def cell(text: str, n: str = "", cls: str = "") -> str:
+        attrs = []
+        if n:
+            attrs.append(f'data-n="{escape(n, quote=True)}"')
+        if cls:
+            attrs.append(f'class="{cls}"')
+        attr = (" " + " ".join(attrs)) if attrs else ""
+        return f"<td{attr}>{escape(text)}</td>"
+
+    body_rows: list[str] = []
+    for row in rows:
+        key = site_name(str(row["stem"]))
+        guide = guide_out.get(key)
+        name = str(row["name"])
+        if guide:
+            name_html = f'<a class="machine-link" href="{href(dest, guide)}">{escape(name)}</a>'
+        else:
+            name_html = escape(name)
+
+        fh_t, fh_n = fmt_num(row["first_hit_den"], "1/")
+        en_t, en_n = fmt_num(row["entry_pct"], "%")
+        co_t, co_n = fmt_num(row["continue_pct"], "%")
+        eq_t, eq_n = fmt_num(row["border_eq"])
+        b28_t, b28_n = fmt_num(row["border_28"])
+        p10_t, p10_n = fmt_num(row["p10"], "%")
+        p30_t, p30_n = fmt_num(row["p30"], "%")
+        p50_t, p50_n = fmt_num(row["p50"], "%")
+
+        find = aliases_for(name)
+        body_rows.append(
+            "<tr "
+            f'data-name="{escape(name, quote=True)}" '
+            f'data-find="{escape(find, quote=True)}" '
+            f'data-type="{escape(str(row["type"]), quote=True)}" '
+            f'data-tags="{escape(str(row["tags"]), quote=True)}">'
+            f"<td>{name_html}</td>"
+            f"{cell(str(row['maker']))}"
+            f"{cell(str(row['type']))}"
+            f"{cell(str(row['tags']))}"
+            f"{cell(fh_t, fh_n)}"
+            f"{cell(en_t, en_n)}"
+            f"{cell(co_t, co_n)}"
+            f"{cell(eq_t, eq_n)}"
+            f"{cell(b28_t, b28_n)}"
+            f"{cell(p10_t, p10_n)}"
+            f"{cell(p30_t, p30_n)}"
+            f"{cell(p50_t, p50_n)}"
+            f"{cell(str(row['ceiling']))}"
+            f"{cell(str(row['yutime']))}"
+            f"{cell(str(row['lt']))}"
+            "</tr>"
+        )
+
+    # CSV sidecar for reuse
+    csv_path = ROOT / "攻略情報" / "スペック一覧.csv"
+    with csv_path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(
+            f,
+            fieldnames=[
+                "name",
+                "maker",
+                "type",
+                "tags",
+                "first_hit_den",
+                "entry_pct",
+                "continue_pct",
+                "border_eq",
+                "border_28",
+                "p10",
+                "p30",
+                "p50",
+                "ceiling",
+                "yutime",
+                "lt",
+            ],
+        )
+        w.writeheader()
+        for row in rows:
+            w.writerow({k: row.get(k) for k in w.fieldnames})
+
+    filter_script = """
+<script>
+(() => {
+  const input = document.getElementById('spec-filter');
+  const body = document.querySelector('#specs-table tbody');
+  const count = document.getElementById('spec-count');
+  if (!input || !body) return;
+  const rows = [...body.rows];
+  const update = () => {
+    const q = (input.value || '').trim().toLowerCase();
+    let shown = 0;
+    rows.forEach((row) => {
+      const hay = [
+        row.dataset.name || '',
+        row.dataset.find || '',
+        row.dataset.type || '',
+        row.dataset.tags || '',
+        row.innerText || '',
+      ].join(' ').toLowerCase();
+      const ok = !q || hay.includes(q);
+      row.hidden = !ok;
+      if (ok) shown += 1;
+    });
+    if (count) count.textContent = String(shown);
+  };
+  input.addEventListener('input', update);
+  update();
+})();
+</script>
+"""
+
+    body = f"""
+<p class="kicker">攻略情報</p>
+<h1>スペック一覧</h1>
+<p class="section-note">全機種の攻略MDから抽出。列見出しクリックでソート。公開解析の概数。</p>
+<div class="section-tools" style="margin:0.75rem 0 1rem">
+  <input class="section-filter" id="spec-filter" type="search" placeholder="機種名・タグで絞り込み" autocomplete="off" aria-label="スペック一覧を絞り込み">
+  <p class="section-note" style="margin:0">表示 <span id="spec-count">{len(rows)}</span> / {len(rows)} 機種</p>
+</div>
+<div class="related">
+  <a href="{href(dest, OUT / "index.html")}#guide">攻略カード一覧</a>
+</div>
+<div class="table-wrap">
+<table class="sheet sortable" id="specs-table">
+<thead>
+<tr>
+<th>機種</th><th>メーカー</th><th>タイプ</th><th>タグ</th>
+<th>初当り</th><th>突入率</th><th>継続率</th>
+<th>等価BD</th><th>28玉BD</th>
+<th>1万発</th><th>3万発</th><th>5万発</th>
+<th>天井</th><th>遊タイム</th><th>LT</th>
+</tr>
+</thead>
+<tbody>
+{''.join(body_rows)}
+</tbody>
+</table>
+</div>
+<p class="foot">データ源: <code>攻略情報/*.md</code> → 再生成は <code>python3 tools/build_html.py</code>。CSV: <code>攻略情報/スペック一覧.csv</code></p>
+{filter_script}
+"""
+    page = shell(dest, "スペック一覧", "", body, wide=True)
+    # shell already injects table_sort_script
+    write(dest, page)
+    return dest
+
+
 def table_sort_script() -> str:
     return """
 <script>
 (() => {
-  const parse = (text) => {
-    const raw = (text || '').replace(/\\s+/g, ' ').trim();
+  const parse = (td) => {
+    if (!td) return { n: null, s: '' };
+    if (td.dataset && td.dataset.n != null && td.dataset.n !== '') {
+      const n = Number(td.dataset.n);
+      if (!Number.isNaN(n)) return { n, s: (td.innerText || td.textContent || '').trim() };
+    }
+    const raw = (td.innerText || td.textContent || '').replace(/\\s+/g, ' ').trim();
     if (!raw || raw === '—' || raw === '-' || raw === '－') return { n: null, s: '' };
+    const oneOver = raw.match(/1\\s*\\/\\s*(\\d+(?:\\.\\d+)?)/);
+    if (oneOver) return { n: Number(oneOver[1]), s: raw };
     const cleaned = raw
       .replace(/,/g, '')
       .replace(/[＋]/g, '+')
       .replace(/[−－]/g, '-')
+      .replace(/^約/u, '')
       .replace(/円(\\/千円|\\/朝)?$/u, '')
       .replace(/%$/u, '')
       .replace(/個$/u, '')
@@ -1632,7 +1893,6 @@ def table_sort_script() -> str:
     if (/^[+-]?\\d+(\\.\\d+)?$/.test(cleaned)) return { n: Number(cleaned), s: raw };
     return { n: null, s: raw.toLowerCase() };
   };
-  const cellText = (td) => (td ? td.innerText || td.textContent || '' : '');
   document.querySelectorAll('table').forEach((table) => {
     const headRow = table.tHead && table.tHead.rows[0];
     const body = table.tBodies[0];
@@ -1652,7 +1912,7 @@ def table_sort_script() -> str:
         th.dataset.sort = asc ? 'asc' : 'desc';
         th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
         const rows = [...body.rows].map((row, index) => {
-          const value = parse(cellText(row.cells[col]));
+          const value = parse(row.cells[col]);
           return { row, index, value };
         });
         rows.sort((a, b) => {
@@ -4936,6 +5196,7 @@ def build_index(
     </div>
   </div>
 </div>
+<p class="related"><a href="攻略情報/スペック一覧.html">全機種スペック一覧（ソート可）</a></p>
 <div class="cards card-collapse" id="guide-cards" data-collapse-limit="3">{''.join(guide_html)}</div>
 <p class="foot">表示を作り直すときは <code>python3 tools/build_html.py</code></p>
 {card_collapse_script(3)}
@@ -5288,6 +5549,7 @@ def main() -> None:
         regions,
         stations,
     )
+    build_specs_list_page(guide_out)
     # 攻略情報の盤面図解など、Markdown から参照する静的画像を docs へコピーする。
     guide_images = ROOT / "攻略情報" / "images"
     if guide_images.is_dir():

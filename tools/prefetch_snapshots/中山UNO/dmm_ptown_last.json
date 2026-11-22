@@ -4,23 +4,23 @@
   "ok": true,
   "dmm_shell_ok": true,
   "pscube_ok": false,
-  "fetched_at": "2026-11-17 17:29",
-  "day": "2026-11-17",
+  "fetched_at": "2026-11-22 16:22",
+  "day": "2026-11-22",
   "jackpot_url": "https://p-town.dmm.com/shops/kanagawa/4564/jackpot",
   "pscube_url": "https://www.pscube.jp/dedamajyoho-P-townDMMpachi/c753211/",
-  "update_date_label": "11/17 （火）",
+  "update_date_label": "11/22 （日）",
   "installs": 160,
   "pscube_units": 0,
   "ranking_images": [
     {
       "label": "pachi",
-      "url": "https://p-town.dmm.com/upload/shop_dedama_rankings/4564/4933.jpg?t=1794904182",
-      "path": "中山UNO/dmm_ptown/ranking_images/2026-11-17/pachi.jpg"
+      "url": "https://p-town.dmm.com/upload/shop_dedama_rankings/4564/4933.jpg?t=1795332149",
+      "path": "中山UNO/dmm_ptown/ranking_images/2026-11-22/pachi.jpg"
     },
     {
       "label": "slot",
-      "url": "https://p-town.dmm.com/upload/shop_dedama_rankings/4564/4934.jpg?t=1794904182",
-      "path": "中山UNO/dmm_ptown/ranking_images/2026-11-17/slot.jpg"
+      "url": "https://p-town.dmm.com/upload/shop_dedama_rankings/4564/4934.jpg?t=1795332149",
+      "path": "中山UNO/dmm_ptown/ranking_images/2026-11-22/slot.jpg"
     }
   ],
   "errors": [
@@ -29,7 +29,7 @@
   "egress_note": "DMM shell: Cloud OK. PSCUBE: Cloud/AWS often CF 403; use Mac residential IP.",
   "machines_page_ok": true,
   "machines_installs": 160,
-  "installs_csv": "中山UNO/dmm_ptown/設置機種_2026-11-17.csv",
+  "installs_csv": "中山UNO/dmm_ptown/設置機種_2026-11-22.csv",
   "pscube_http": 200,
   "pscube_server": "cloudflare"
 }

@@ -1169,12 +1169,14 @@ def load_store_exchanges() -> list[dict[str, object]]:
     raw_cash = load_store_field("換金単価", lambda _store: "")
     stores: list[dict[str, object]] = []
     for name, value in raw_exchange.items():
-        match = re.search(r"(\d+)\s*玉", value)
-        balls = int(match.group(1)) if match else 28
+        # プレゴ等の 25.6玉 も拾う（整数のみだと 28 に落ちる）
+        match = re.search(r"(\d+(?:\.\d+)?)\s*玉", value)
+        balls_f = float(match.group(1)) if match else 28.0
+        balls = int(round(balls_f))
         table_balls = balls
         if balls not in (40, 33, 30, 28, 25):
             # 期待収支表に無い玉数はいちばん近い列へ寄せる
-            table_balls = min((40, 33, 30, 28, 25), key=lambda n: abs(n - balls))
+            table_balls = min((40, 33, 30, 28, 25), key=lambda n: abs(n - balls_f))
         lend_raw = raw_lend.get(name, "100円/25玉")
         lend_yen = parse_lend_yen(lend_raw)
         cash_raw = (raw_cash.get(name) or "").strip()
@@ -1182,20 +1184,21 @@ def load_store_exchanges() -> list[dict[str, object]]:
         cash_match = re.search(r"(\d+(?:\.\d+)?)\s*円", cash_raw)
         if cash_match:
             yen_override = float(cash_match.group(1))
-        # 換金ツール用。換金単価が無ければ 100÷交換玉数
+        # 換金ツール用。換金単価が無ければ 100÷交換玉数（小数玉もそのまま）
         yen_per_ball = (
             yen_override
             if yen_override is not None
-            else round(100 / balls, 4)
+            else round(100 / balls_f, 4)
         )
+        label = f"{balls_f:g}玉"
         stores.append(
             {
                 "name": name,
                 "balls": table_balls,
-                "exchange_balls": balls,
+                "exchange_balls": balls_f,
                 "yen_per_ball": yen_per_ball,
                 "yen_override": yen_override is not None,
-                "label": f"{balls}玉",
+                "label": label,
                 "lend": lend_yen,
                 "lend_label": lend_raw.strip(),
             }

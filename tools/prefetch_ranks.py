@@ -86,6 +86,13 @@ STORES: dict[str, dict[str, object]] = {
         "csv_dir": "楽園池袋店",
         "expected_rate_hint": "4パチ",
     },
+    "楽園池袋店グリーンサイド": {
+        "kind": "site777_rank",
+        "url": "https://m.site777.jp/f/D0900.do?pmc=22021035&clc=01",
+        "models_url": "https://m.site777.jp/f/D0300.do?pmc=22021035&clc=01&urt=400&pan=1",
+        "csv_dir": "楽園池袋店グリーンサイド",
+        "expected_rate_hint": "4パチ",
+    },
 }
 
 

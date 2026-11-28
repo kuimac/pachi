@@ -3,10 +3,13 @@
 # Cloud / ubuntu Actions は Site Seven・PSCUBE が 403 になりやすいので、住宅 IP の Mac を取得経路にする。
 # DMM ぱちタウンのシェル（設置機種・ランキング画像）は Cloud でも取れるが、台番号別表は PSCUBE=Mac 前提。
 #
+# 本体は tools/collect_store.py（509リトライ・日次フォルダ複製・生データ取得結果まで）。
+#
 # 使い方:
 #   ./tools/mac_keepalive_fetch.sh                 # 1回だけ取得
 #   ./tools/mac_keepalive_fetch.sh --loop 3600     # 1時間おき（caffeinate 付き）
 #   ./tools/mac_keepalive_fetch.sh --store 中山UNO --publish
+#   python3 tools/collect_store.py --store 楽園池袋店 --publish
 #
 # launchd 例: tools/macos/com.kuimac.pachi.fetch.plist
 set -euo pipefail
@@ -19,6 +22,8 @@ LOOP_SEC=0
 DO_PUBLISH=0
 MODE="adhoc"
 DAY=""
+SLEEP="1.0"
+RETRIES="3"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -27,8 +32,10 @@ while [[ $# -gt 0 ]]; do
     --publish) DO_PUBLISH=1; shift ;;
     --mode) MODE="$2"; shift 2 ;;
     --day) DAY="$2"; shift 2 ;;
+    --sleep) SLEEP="$2"; shift 2 ;;
+    --retries) RETRIES="$2"; shift 2 ;;
     -h|--help)
-      sed -n '2,14p' "$0"
+      sed -n '2,16p' "$0"
       exit 0
       ;;
     *)
@@ -39,21 +46,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_once() {
-  local day_args=()
+  local args=(--store "$STORE" --mode "$MODE" --sleep "$SLEEP" --retries "$RETRIES")
   if [[ -n "$DAY" ]]; then
-    day_args=(--day "$DAY")
-  fi
-  echo "[mac-fetch] $(TZ=Asia/Tokyo date '+%F %T') store=$STORE mode=$MODE"
-  python3 tools/prefetch_ranks.py --store "$STORE" --mode "$MODE" "${day_args[@]+"${day_args[@]}"}"
-  python3 tools/fetch_site777_all_units.py --store "$STORE" "${day_args[@]+"${day_args[@]}"}"
-  # 中山UNO: DMM ぱちタウン / PSCUBE を併用（Site Seven を置き換えない）
-  if [[ "$STORE" == "all" || "$STORE" == "中山UNO" ]]; then
-    python3 tools/fetch_dmm_ptown.py --store 中山UNO "${day_args[@]+"${day_args[@]}"}" || true
-    python3 tools/merge_uno_sources.py "${day_args[@]+"${day_args[@]}"}" || true
+    args+=(--day "$DAY")
   fi
   if [[ "$DO_PUBLISH" -eq 1 ]]; then
-    ./tools/publish.sh "Prefetch Mac keepalive $(TZ=Asia/Tokyo date '+%F %H:%M') (${STORE})"
+    args+=(--publish)
   fi
+  echo "[mac-fetch] $(TZ=Asia/Tokyo date '+%F %T') store=$STORE mode=$MODE -> collect_store.py"
+  python3 tools/collect_store.py "${args[@]}"
 }
 
 if [[ "$LOOP_SEC" -gt 0 ]]; then
@@ -64,6 +65,8 @@ if [[ "$LOOP_SEC" -gt 0 ]]; then
       \"$(printf '%q' "$ROOT")/tools/mac_keepalive_fetch.sh\" \
         --store $(printf '%q' "$STORE") \
         --mode $(printf '%q' "$MODE") \
+        --sleep $(printf '%q' "$SLEEP") \
+        --retries $(printf '%q' "$RETRIES") \
         ${DAY:+--day $(printf '%q' "$DAY")} \
         ${DO_PUBLISH:+--publish} || true
       sleep $(printf '%q' "$LOOP_SEC")

@@ -1,12 +1,14 @@
 {
   "store": "楽園池袋店",
   "ok": true,
-  "fetched_at": "2026-11-28 14:23",
+  "fetched_at": "2026-11-28 16:05",
   "day": "2026-11-28",
   "models": 59,
   "units": 603,
   "rate": "4パチ",
   "errors": [],
+  "retries_used": 0,
+  "catalog_models": 59,
   "csv": "楽園池袋店/全台データ_2026-11-28.csv",
   "model_names": [
     "P 春一番 2026",
@@ -69,5 +71,5 @@
     "ｅ魔女と野獣",
     "ｅ魔法少女リリカルなのは"
   ],
-  "note": "merged retry after 509"
+  "missing_models": []
 }

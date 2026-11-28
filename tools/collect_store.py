@@ -14,7 +14,11 @@
 例:
   python3 tools/collect_store.py --store 楽園池袋店
   python3 tools/collect_store.py --store 楽園池袋店 --publish
-  python3 tools/collect_store.py --store all --mode morning --publish
+  python3 tools/run_pachi.py --store 楽園池袋店 --collect --analyze --publish
+  # 複数店は店ごとに叩く（間に sleep）
+  for s in 楽園池袋店 楽園町田店; do
+    python3 tools/collect_store.py --store "$s"; sleep 45
+  done
   ./tools/mac_keepalive_fetch.sh --store 楽園町田店 --publish
 """
 
@@ -34,18 +38,11 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 TZ = ZoneInfo("Asia/Tokyo")
 
-# Site Seven 登録店（prefetch / fetch と同期）
-SITE777_STORES = [
-    "中山UNO",
-    "中山ZoRoN",
-    "エスパス日拓西武新宿駅前店",
-    "楽園町田店",
-    "楽園渋谷駅前店",
-    "楽園渋谷道玄坂店",
-    "エスパス日拓渋谷駅前新館",
-    "楽園池袋店",
-    "楽園池袋店グリーンサイド",
-]
+# Site Seven 登録店は store_registry（prefetch / fetch と同期）
+sys.path.insert(0, str(ROOT / "tools"))
+from store_registry import require_one_store, site777_stores  # noqa: E402
+
+SITE777_STORES = site777_stores()
 
 
 def now_tokyo() -> datetime:
@@ -238,10 +235,10 @@ def collect_one(
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--store", default="all", help="店名 or all")
+    ap.add_argument("--store", required=True, help="正規店名（1店のみ。複数店はスクリプトを複数回叩く）")
     ap.add_argument("--day", default="", help="YYYY-MM-DD（省略時は JST・10時前は前日）")
     ap.add_argument("--mode", choices=["morning", "adhoc"], default="adhoc")
-    ap.add_argument("--sleep", type=float, default=1.0)
+    ap.add_argument("--sleep", type=float, default=1.5, help="HTTP リクエスト間隔（秒）")
     ap.add_argument("--retries", type=int, default=3)
     ap.add_argument("--retry-backoff", type=float, default=60.0)
     ap.add_argument("--publish", action="store_true", help="取得後に publish.sh")
@@ -249,36 +246,35 @@ def main() -> int:
     args = ap.parse_args()
 
     day = args.day or default_day()
-    if args.store == "all":
-        targets = list(SITE777_STORES)
-    elif args.store in SITE777_STORES:
-        targets = [args.store]
-    else:
-        print(f"unknown store: {args.store}", file=sys.stderr)
-        print("known:", ", ".join(SITE777_STORES), file=sys.stderr)
+    try:
+        store = require_one_store(args.store)
+    except SystemExit as e:
+        print(e, file=sys.stderr)
+        return 2
+    if store not in site777_stores():
+        print(f"Site Seven 未接続: {store}", file=sys.stderr)
+        print("known site777:", ", ".join(site777_stores()), file=sys.stderr)
         return 2
 
-    failures = 0
-    for store in targets:
-        code = collect_one(
-            store,
-            day=day,
-            mode=args.mode,
-            sleep=args.sleep,
-            retries=args.retries,
-            retry_backoff=args.retry_backoff,
-            with_dmm_uno=not args.no_dmm_uno,
-        )
-        if code:
-            failures += 1
+    code = collect_one(
+        store,
+        day=day,
+        mode=args.mode,
+        sleep=args.sleep,
+        retries=args.retries,
+        retry_backoff=args.retry_backoff,
+        with_dmm_uno=not args.no_dmm_uno,
+    )
+    if code:
+        return code
 
     if args.publish:
-        msg = f"Collect {','.join(targets) if len(targets) <= 3 else 'stores'} {day} ({args.mode})"
+        msg = f"Collect {store} {day} ({args.mode})"
         pub = run(["./tools/publish.sh", msg])
         if pub:
-            failures += 1
+            return pub
 
-    return 1 if failures else 0
+    return 0
 
 
 if __name__ == "__main__":

@@ -95,20 +95,37 @@ python3 tools/brief.py diff <正規店名> --day YYYY-MM-DD --save
 - **日付を過ぎたフォルダはスナップショット。** 書き換えない。確認は店舗ページの「過去の判断」からその日のページを開く。
 - 店舗ページは「当日の判断」と「過去の判断」を分けて出す。当日欄は判断 MD へのリンク、過去欄は日付ごとのスナップショット。
 
-### 2. 収集（ブラウザ）
+### 2. 収集・分析（スクリプト優先・トークン節約）
 
-**Site Seven 登録店の出玉＋全台は、エージェント会話ではなくスクリプトで取る（トークン節約）。**
+**今後の収集と分析はエージェント会話ではなくスクリプトを叩く。** Mac 住宅 IP 必須。**1回の実行は1店だけ。** 複数店はスクリプトを店ごとに複数回叩く（`all` / `site777` 一括は不可）。アクセス過多を避けるため `--sleep`（リクエスト間隔）と、店と店のあいだは呼び出し側で `sleep 45` など。
 
 ```bash
-# 推奨（Mac 住宅 IP）: ランキング＋全台（509リトライ）＋日次複製＋生データ取得結果
-python3 tools/collect_store.py --store <正規店名>            # 分析はしない
-python3 tools/collect_store.py --store <正規店名> --publish  # Pages まで
-./tools/mac_keepalive_fetch.sh --store <正規店名> --publish  # 同上（caffeinate/loop 可）
+# 店舗一覧の確認
+python3 tools/run_pachi.py --list
+python3 tools/store_registry.py
+
+# 推奨: 収集＋判断MD＋Pages（1店）
+python3 tools/run_pachi.py --store <正規店名> --collect --analyze --publish --sleep 1.5
+
+# 複数店 → 店ごとに叩く（間に sleep）
+for s in 楽園池袋店 楽園町田店 中山UNO; do
+  python3 tools/run_pachi.py --store "$s" --collect --analyze --sleep 1.5
+  sleep 45
+done
+./tools/publish.sh "multi-store"
+
+# 収集のみ / 分析のみ（既存CSV）
+python3 tools/collect_store.py --store <店> --sleep 1.5
+python3 tools/analyze_store.py --store <店> --mode afternoon
+
+./tools/mac_keepalive_fetch.sh --store <店> --analyze --publish
 ```
 
-個別に分けるとき: `prefetch_ranks.py` → `fetch_site777_all_units.py`（`--retries` 付き）。中山UNO は `collect_store` が DMM 併用も行う。
+- `collect_store.py` … Site Seven ランキング＋全台（509リトライ）＋日次複製＋生データ取得結果。中山UNO は DMM 併用。1店のみ。
+- `analyze_store.py` … 全台CSVから `台分析` / `天井ある台` / `期待値` / `重要ポイント` 等を自動生成。CSV無しは `分析不可.md`。1店のみ。
+- `run_pachi.py` … 1店の収集＋分析＋publish。未接続店は収集スキップ＋分析不可。
 
-エージェントが手でやるのは、一覧外店舗の情報記載・判断 MD・ブラウザ必須の深い履歴だけ。
+エージェントが手でやるのは、一覧への新規店登録・ブラウザ必須の深い履歴・スクリプト結果の例外確認だけ。
 
 1. 分析URLを開く。PC では Cursor IDE Browser または実 Chrome。ログインが要るサイトは PC セッション優先。
 2. **4円パチンコ全台**だけ取る。
@@ -213,8 +230,8 @@ python3 tools/collect_store.py --store <正規店名> --publish  # Pages まで
 
 #### 今後データを取得したら
 
-1. **推奨:** `python3 tools/collect_store.py --store <店> --publish`（中で ranks＋全台＋日次複製。中山UNO は DMM 併用）。個別なら `prefetch_ranks.py` / `fetch_site777_all_units.py` / 手動。UNO 詳細は `docs/dmm-ptown-uno-fetch.md`。
-2. **必ず** `./tools/publish.sh "..."`（または collect の `--publish` / `python3 tools/build_html.py` のあと push）。build 時に上記2ページと店舗ハブの天井・遊タイム機表が最新 CSV で上書きされる。
+1. **推奨:** 店ごとに `python3 tools/run_pachi.py --store <正規店名> --collect --analyze --publish`（`--sleep 1.5`）。複数店はループで複数回。収集だけなら `collect_store.py`。UNO 詳細は `docs/dmm-ptown-uno-fetch.md`。
+2. **必ず** publish（各店の `--publish`、または複数店後にまとめて `./tools/publish.sh`）。build 時に全台一覧・出玉ランキング・天井表が最新 CSV で上書きされる。
 3. 取得だけして publish しないと Pages は古いまま。
 
 公開URL例（楽園町田店）:

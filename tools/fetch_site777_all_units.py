@@ -162,17 +162,111 @@ def parse_d3210(html: str) -> tuple[str, list[dict[str, str]]]:
     return machine, rows
 
 
+FIELDS = ["日付", "台番号", "機種", "累計スタート", "大当り回数", "初当り回数", "最高出玉", "レート", "mdc", "設置台数"]
+
+
 def fetch(session: Session, url: str, sleep_s: float) -> tuple[int, str, str]:
     code, raw, err = session.get(url)
     time.sleep(sleep_s)
     return code, decode_html(raw) if raw else "", err
 
 
-def process_store(name: str, day: str, sleep_s: float) -> dict[str, object]:
+def is_junk_model_name(name: str) -> bool:
+    n = (name or "").strip()
+    if not n or len(n) > 80:
+        return True
+    if n.startswith("!--") or "microad" in n.lower() or "script" in n.lower():
+        return True
+    return False
+
+
+def list_models(session: Session, pmc: str, urt: str, sleep_s: float, errors: list[str]) -> list[tuple[str, str, int]]:
+    base = "https://m.site777.jp/f"
+    models: list[tuple[str, str, int]] = []
+    pan = 1
+    while pan <= 10:
+        url = f"{base}/D0300.do?pmc={pmc}&clc=01&urt={urt}&pan={pan}"
+        code, html, err = fetch(session, url, sleep_s)
+        if code != 200 or not html:
+            errors.append(f"D0300 pan={pan}: http={code} {err}")
+            break
+        chunk = parse_models(html)
+        if not chunk:
+            break
+        existing = {m[0] for m in models}
+        added = [m for m in chunk if m[0] not in existing and not is_junk_model_name(m[1])]
+        if not added:
+            break
+        models.extend(added)
+        pan += 1
+    return models
+
+
+def fetch_model_units(
+    session: Session,
+    *,
+    pmc: str,
+    urt: str,
+    rate: str,
+    day: str,
+    mdc: str,
+    machine: str,
+    expected: int,
+    sleep_s: float,
+) -> tuple[list[dict[str, object]], str | None]:
+    """Return (rows, error_or_None)."""
+    base = "https://m.site777.jp/f"
+    url = f"{base}/D3210.do?pmc={pmc}&soc=1&sw=1&pan=1&urt={urt}&dtdd=0&mdc={mdc}&bn=1"
+    code, html, err = fetch(session, url, sleep_s)
+    if code != 200 or not html:
+        return [], f"{machine or mdc}: http={code} {err}"
+    if "有料コンテンツです" in html and "台番" not in html:
+        return [], f"{machine or mdc}: paywall"
+    parsed_name, rows = parse_d3210(html)
+    machine_name = parsed_name or machine or f"mdc_{mdc}"
+    if not rows:
+        return [], f"{machine_name}: no free unit rows"
+    out: list[dict[str, object]] = []
+    for row in rows:
+        dai = row.get("台番") or row.get("台番号") or ""
+        out.append(
+            {
+                "日付": day,
+                "台番号": dai,
+                "機種": machine_name,
+                "累計スタート": (row.get("累計スタート") or "").replace(",", ""),
+                "大当り回数": (row.get("大当り回数") or "").replace(",", ""),
+                "初当り回数": (row.get("初当り回数") or "").replace(",", ""),
+                "最高出玉": (row.get("最高出玉") or "").replace(",", ""),
+                "レート": rate,
+                "mdc": mdc,
+                "設置台数": expected,
+            }
+        )
+    return out, None
+
+
+def write_units_csv(path: Path, rows: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=FIELDS)
+        w.writeheader()
+        for r in sorted(rows, key=lambda x: (str(x["機種"]), int(str(x["台番号"]) or 0))):
+            w.writerow(r)
+
+
+def process_store(
+    name: str,
+    day: str,
+    sleep_s: float,
+    *,
+    retries: int = 3,
+    retry_backoff_s: float = 60.0,
+) -> dict[str, object]:
+    """全台取得。509 等は欠落機種だけ待機リトライしてマージする。"""
     cfg = STORES[name]
     pmc, urt, rate = cfg["pmc"], cfg["urt"], cfg["rate"]
     session = Session()
-    base = "https://m.site777.jp/f"
     result: dict[str, object] = {
         "store": name,
         "ok": False,
@@ -182,74 +276,65 @@ def process_store(name: str, day: str, sleep_s: float) -> dict[str, object]:
         "units": 0,
         "rate": rate,
         "errors": [],
+        "retries_used": 0,
     }
-    models: list[tuple[str, str, int]] = []
-    pan = 1
-    while pan <= 10:
-        url = f"{base}/D0300.do?pmc={pmc}&clc=01&urt={urt}&pan={pan}"
-        code, html, err = fetch(session, url, sleep_s)
-        if code != 200 or not html:
-            result["errors"].append(f"D0300 pan={pan}: http={code} {err}")  # type: ignore[union-attr]
-            break
-        chunk = parse_models(html)
-        if not chunk:
-            break
-        existing = {m[0] for m in models}
-        added = [m for m in chunk if m[0] not in existing]
-        if not added:
-            break
-        models.extend(added)
-        pan += 1
+    errors: list[str] = []
+    models = list_models(session, pmc, urt, sleep_s, errors)
+    result["catalog_models"] = len(models)
 
-    result["models"] = len(models)
-    all_rows: list[dict[str, object]] = []
-    for mdc, machine, expected in models:
-        url = f"{base}/D3210.do?pmc={pmc}&soc=1&sw=1&pan=1&urt={urt}&dtdd=0&mdc={mdc}&bn=1"
-        code, html, err = fetch(session, url, sleep_s)
-        if code != 200 or not html:
-            result["errors"].append(f"{machine or mdc}: http={code} {err}")  # type: ignore[union-attr]
-            continue
-        if "有料コンテンツです" in html and "台番" not in html:
-            result["errors"].append(f"{machine or mdc}: paywall")  # type: ignore[union-attr]
-            continue
-        parsed_name, rows = parse_d3210(html)
-        machine_name = parsed_name or machine or f"mdc_{mdc}"
-        if not rows:
-            # still record model with zero free rows
-            result["errors"].append(f"{machine_name}: no free unit rows")  # type: ignore[union-attr]
-            continue
-        for row in rows:
-            dai = row.get("台番") or row.get("台番号") or ""
-            all_rows.append(
-                {
-                    "日付": day,
-                    "台番号": dai,
-                    "機種": machine_name,
-                    "累計スタート": (row.get("累計スタート") or "").replace(",", ""),
-                    "大当り回数": (row.get("大当り回数") or "").replace(",", ""),
-                    "初当り回数": (row.get("初当り回数") or "").replace(",", ""),
-                    "最高出玉": (row.get("最高出玉") or "").replace(",", ""),
-                    "レート": rate,
-                    "mdc": mdc,
-                    "設置台数": expected,
-                }
+    by_mdc: dict[str, list[dict[str, object]]] = {}
+    pending = list(models)
+    attempt = 0
+    max_attempts = max(1, retries)
+
+    while pending and attempt < max_attempts:
+        if attempt:
+            wait = retry_backoff_s * attempt
+            print(f"[retry] {name}: wait {wait:.0f}s then retry {len(pending)} models (attempt {attempt + 1}/{max_attempts})")
+            time.sleep(wait)
+            result["retries_used"] = attempt
+        next_pending: list[tuple[str, str, int]] = []
+        for mdc, machine, expected in pending:
+            rows, err = fetch_model_units(
+                session,
+                pmc=pmc,
+                urt=urt,
+                rate=rate,
+                day=day,
+                mdc=mdc,
+                machine=machine,
+                expected=expected,
+                sleep_s=sleep_s,
             )
-        print(f"[ok] {name} {machine_name}: {len(rows)} units (expected {expected})")
+            if err:
+                next_pending.append((mdc, machine, expected))
+                if attempt == max_attempts - 1:
+                    errors.append(err)
+                else:
+                    print(f"[defer] {name} {machine or mdc}: {err}")
+                continue
+            machine_name = str(rows[0]["機種"]) if rows else machine
+            by_mdc[mdc] = rows
+            print(f"[ok] {name} {machine_name}: {len(rows)} units (expected {expected})")
+        pending = next_pending
+        attempt += 1
+
+    all_rows: list[dict[str, object]] = []
+    for rows in by_mdc.values():
+        all_rows.extend(rows)
 
     out_dir = ROOT / name
-    out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"全台データ_{day}.csv"
-    fields = ["日付", "台番号", "機種", "累計スタート", "大当り回数", "初当り回数", "最高出玉", "レート", "mdc", "設置台数"]
-    with path.open("w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fields)
-        w.writeheader()
-        for r in sorted(all_rows, key=lambda x: (str(x["機種"]), int(str(x["台番号"]) or 0))):
-            w.writerow(r)
-    # also copy under day folder later by caller
+    write_units_csv(path, all_rows)
+
+    result["errors"] = errors
+    result["models"] = len({str(r["機種"]) for r in all_rows})
     result["units"] = len(all_rows)
     result["ok"] = len(all_rows) > 0
     result["csv"] = str(path.relative_to(ROOT))
     result["model_names"] = sorted({str(r["機種"]) for r in all_rows})
+    result["missing_models"] = [m[1] for m in pending] if pending else []
+    result["fetched_at"] = now_tokyo().strftime("%Y-%m-%d %H:%M")
     return result
 
 
@@ -258,6 +343,8 @@ def main() -> int:
     ap.add_argument("--store", default="all")
     ap.add_argument("--day", default="")
     ap.add_argument("--sleep", type=float, default=2.0)
+    ap.add_argument("--retries", type=int, default=3, help="欠落機種の再試行回数（509対策）")
+    ap.add_argument("--retry-backoff", type=float, default=60.0, help="再試行前の待機秒（回数×この値）")
     args = ap.parse_args()
     day = args.day or now_tokyo().strftime("%Y-%m-%d")
     # early morning: hall data still previous calendar day
@@ -278,7 +365,13 @@ def main() -> int:
     for i, name in enumerate(targets):
         if i:
             time.sleep(args.sleep)
-        result = process_store(name, day, args.sleep)
+        result = process_store(
+            name,
+            day,
+            args.sleep,
+            retries=args.retries,
+            retry_backoff_s=args.retry_backoff,
+        )
         (snap / name).mkdir(parents=True, exist_ok=True)
         payload = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
         # 失敗で成功スナップショットを潰さない（Cloud/GHA の 403 対策）
@@ -287,8 +380,9 @@ def main() -> int:
             (snap / name / "site777_all_units_last.json").write_text(payload, encoding="utf-8")
         else:
             print(f"[snap] {name}: keep site777_all_units_last.json (attempt failed)")
-        print(json.dumps({k: result[k] for k in ("store", "ok", "units", "models", "csv")}, ensure_ascii=False))
-        if not result.get("ok"):
+        summary = {k: result[k] for k in ("store", "ok", "units", "models", "csv", "retries_used", "missing_models")}
+        print(json.dumps(summary, ensure_ascii=False))
+        if not result.get("ok") or result.get("missing_models"):
             failures += 1
     return 1 if failures else 0
 

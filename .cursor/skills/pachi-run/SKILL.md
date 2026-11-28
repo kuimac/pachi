@@ -97,6 +97,19 @@ python3 tools/brief.py diff <正規店名> --day YYYY-MM-DD --save
 
 ### 2. 収集（ブラウザ）
 
+**Site Seven 登録店の出玉＋全台は、エージェント会話ではなくスクリプトで取る（トークン節約）。**
+
+```bash
+# 推奨（Mac 住宅 IP）: ランキング＋全台（509リトライ）＋日次複製＋生データ取得結果
+python3 tools/collect_store.py --store <正規店名>            # 分析はしない
+python3 tools/collect_store.py --store <正規店名> --publish  # Pages まで
+./tools/mac_keepalive_fetch.sh --store <正規店名> --publish  # 同上（caffeinate/loop 可）
+```
+
+個別に分けるとき: `prefetch_ranks.py` → `fetch_site777_all_units.py`（`--retries` 付き）。中山UNO は `collect_store` が DMM 併用も行う。
+
+エージェントが手でやるのは、一覧外店舗の情報記載・判断 MD・ブラウザ必須の深い履歴だけ。
+
 1. 分析URLを開く。PC では Cursor IDE Browser または実 Chrome。ログインが要るサイトは PC セッション優先。
 2. **4円パチンコ全台**だけ取る。
 3. CSV を既存形式で `正規店名/<機種名>/<台番号>/` に保存（`スタート.csv` `大当り一覧.csv` `大当り履歴データ.csv` など）。列名は既存楽園町田店に合わせる。
@@ -200,8 +213,8 @@ python3 tools/brief.py diff <正規店名> --day YYYY-MM-DD --save
 
 #### 今後データを取得したら
 
-1. いつもどおり CSV を置く（`prefetch_ranks.py` / `fetch_site777_all_units.py` / 手動）。中山UNO は加えて `fetch_dmm_ptown.py`（DMM/PSCUBE 併用。Site Seven を置き換えない。詳細は `docs/dmm-ptown-uno-fetch.md`）。
-2. **必ず** `./tools/publish.sh "..."`（または `python3 tools/build_html.py` のあと push）。build 時に上記2ページと店舗ハブの天井・遊タイム機表が最新 CSV で上書きされる。
+1. **推奨:** `python3 tools/collect_store.py --store <店> --publish`（中で ranks＋全台＋日次複製。中山UNO は DMM 併用）。個別なら `prefetch_ranks.py` / `fetch_site777_all_units.py` / 手動。UNO 詳細は `docs/dmm-ptown-uno-fetch.md`。
+2. **必ず** `./tools/publish.sh "..."`（または collect の `--publish` / `python3 tools/build_html.py` のあと push）。build 時に上記2ページと店舗ハブの天井・遊タイム機表が最新 CSV で上書きされる。
 3. 取得だけして publish しないと Pages は古いまま。
 
 公開URL例（楽園町田店）:

@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import argparse
-import csv
+import re
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -55,8 +55,123 @@ def exchange_note(store: str) -> str:
         parts.append(f"換金単価{cash}")
     if lend:
         parts.append(f"貸出{lend}")
+    parts.append("分析BDは4パチ250玉交換基準・等価と28玉を併記")
     parts.append("町田楽園の3.75円/発は町田のみ")
     return "・".join(parts)
+
+
+def bd_pair(meta: dict) -> str:
+    """等価と28玉を必ず併記。"""
+    eq = meta.get("bd_eq") or "—"
+    b28 = meta.get("bd28") or "—"
+    return f"等価{eq} / 28玉{b28}"
+
+
+def bd_stop(meta: dict) -> str:
+    eq = meta.get("bd_eq") or "—"
+    b28 = meta.get("bd28") or "—"
+    return f"等価{eq}未満または28玉{b28}未満で即切（未測は切・分析は250玉交換基準）"
+
+
+def parse_float(val) -> float | None:
+    if val is None or val in ("", "—", "-"):
+        return None
+    try:
+        return float(str(val).replace("約", "").strip())
+    except ValueError:
+        return None
+
+
+def trigger_rotations(text: str) -> int | None:
+    """遊タイム／天井テキストから発動回転を拾う。"""
+    if not text:
+        return None
+    patterns = [
+        r"低確率(?:状態)?(?:を)?\s*(\d+)\s*回転",
+        r"低確\s*\*?\*?(\d+)\s*回転",
+        r"(\d+)\s*回転\s*(?:消化|で遊タイム|で発動|→)",
+        r"大当り間\s*\*?\*?(\d+)\s*回転",
+    ]
+    for pat in patterns:
+        m = re.search(pat, text)
+        if m:
+            return int(m.group(1))
+    return None
+
+
+def sit_remain_default(trigger: int | None, model: str, yutime: str) -> int | None:
+    """ガイドに数値線が無いときの簡易残回転（過去運用）。"""
+    name = model or ""
+    yt = yutime or ""
+    if "アグネス" in name or (trigger == 239):
+        return 100
+    if "電音" in name or "1500個" in yt or (trigger and trigger >= 500):
+        return 200
+    if trigger and trigger >= 800:
+        return 150
+    if trigger and trigger >= 200:
+        return 100
+    if trigger:
+        return max(30, trigger // 3)
+    return None
+
+
+def sit_criteria_for(model: str, meta: dict) -> dict:
+    """座る基準（割り込み線・スタート何回転以上）。"""
+    g = meta.get("guide") or {}
+    yutime = g.get("yutime") or meta.get("yutime") or ""
+    ceiling = g.get("ceiling") or meta.get("ceiling") or ""
+    guide_name = g.get("name") or ""
+    line_note = ""
+    remain: int | None = None
+    trigger = trigger_rotations(str(yutime)) or trigger_rotations(str(ceiling))
+
+    guide_path = ROOT / "攻略情報" / f"{guide_name}.md" if guide_name else None
+    if guide_path and guide_path.is_file():
+        text = guide_path.read_text(encoding="utf-8", errors="ignore")
+        if "## ハイエナ基準" in text:
+            chunk = text.split("## ハイエナ基準", 1)[1].split("\n## ", 1)[0]
+            m = re.search(r"残り[がおおよそ\s]*(\d+)\s*回転", chunk)
+            if m:
+                remain = int(m.group(1))
+                line_note = f"ガイド線入り: 残≤約{remain}"
+            m2 = re.search(r"残[≤≦]?\s*(\d+)", chunk)
+            if remain is None and m2:
+                remain = int(m2.group(1))
+                line_note = f"ガイド簡易線: 残≤{remain}"
+            m3 = re.search(r"スタート\s*(\d+)\s*から", chunk)
+            start_from = int(m3.group(1)) if m3 else None
+            if start_from is not None and trigger:
+                remain = max(0, trigger - start_from)
+                line_note = f"ガイド: スタート{start_from}〜（残≤{remain}）"
+
+    if remain is None:
+        remain = sit_remain_default(trigger, model, str(yutime))
+        if remain is not None:
+            line_note = f"運用簡易線: 残≤約{remain}"
+
+    sit_start: int | None = None
+    if trigger is not None and remain is not None:
+        sit_start = max(0, trigger - remain)
+
+    if sit_start is not None:
+        sit_text = (
+            f"割り込み: 線入り（残≤約{remain}）のみ。"
+            f"スタート{sit_start}回転以上相当＋液晶確認。"
+            f"{line_note}"
+        )
+    elif remain is not None:
+        sit_text = f"割り込み: 線入り（残≤約{remain}）＋液晶のみ。ST未公開時は残表示必須。{line_note}"
+    else:
+        sit_text = "割り込み: 線入り時のみ（数値線未掲載）。液晶残が浅いときだけ。線外は本命にしない"
+
+    return {
+        "trigger": trigger,
+        "remain": remain,
+        "sit_start": sit_start,
+        "text": sit_text,
+        "line_note": line_note or "線入り時のみ",
+    }
 
 
 def write_unavailable(store: str, day: str, mode: str, reason: str) -> Path:
@@ -151,13 +266,20 @@ def analyze_one(store: str, day: str, mode: str) -> int:
     ceiling_units = [r for r in rows if model_meta.get(r["model"] or "—", {}).get("has_ceil")]
     ceiling_models = sorted({r["model"] for r in ceiling_units if r["model"]})
 
-    # cold order: low ST, low hits, known BD
+    # sit criteria per ceiling model
+    sit_by_model: dict[str, dict] = {}
+    for model in ceiling_models:
+        sit_by_model[model] = sit_criteria_for(model, model_meta[model])
+
+    # cold order: low ST, low hits, known BD（等価または28玉）
     candidates = []
     for r in rows:
         st = st_of(r)
         ht = hits_of(r)
         meta = model_meta.get(r["model"] or "—", {})
-        if st is None or meta.get("bd28") in (None, "—", ""):
+        if st is None:
+            continue
+        if parse_float(meta.get("bd28")) is None and parse_float(meta.get("bd_eq")) is None:
             continue
         if st <= 200 and (ht is None or ht <= 2):
             candidates.append(r)
@@ -175,9 +297,9 @@ def analyze_one(store: str, day: str, mode: str) -> int:
         lines = []
         for i, r in enumerate(items, 1):
             meta = model_meta.get(r["model"] or "—", {})
-            bd = meta.get("bd28", "—")
             lines.append(
-                f"| {i} | {r['unit']} | {r['model']} | 1000円実測。ST{st_disp(r)}・当{hits_of(r) if hits_of(r) is not None else '—'}。BD28≈{bd} | {bd}未満で即切（未測は切） |"
+                f"| {i} | {r['unit']} | {r['model']} | 1000円実測。ST{st_disp(r)}・当{hits_of(r) if hits_of(r) is not None else '—'}。"
+                f"BD {bd_pair(meta)} | {bd_stop(meta)} |"
             )
         return "\n".join(lines) if lines else "| 1 | — | — | 到着後に番号確定 | — |"
 
@@ -186,19 +308,28 @@ def analyze_one(store: str, day: str, mode: str) -> int:
         for r in sorted(ceiling_units, key=lambda x: (x["model"] or "", int(x["unit"]) if str(x["unit"]).isdigit() else 0)):
             meta = model_meta[r["model"]]
             g = meta["guide"] or {}
+            sit = sit_by_model.get(r["model"]) or sit_criteria_for(r["model"], meta)
+            sit_start = sit["sit_start"]
+            sit_col = f"ST≥{sit_start}" if sit_start is not None else "液晶残"
             lines.append(
-                f"| {r['unit']} | {r['model']} | {g.get('ceiling') or meta['ceiling']} | {g.get('yutime') or meta['yutime']} | {st_disp(r)} | {hits_of(r) if hits_of(r) is not None else '—'} | 遊タイム残りは液晶 |"
+                f"| {r['unit']} | {r['model']} | {g.get('ceiling') or meta['ceiling']} | {g.get('yutime') or meta['yutime']} | "
+                f"{st_disp(r)} | {hits_of(r) if hits_of(r) is not None else '—'} | {bd_pair(meta)} | "
+                f"{sit_col} / {sit['line_note']} |"
             )
-        return "\n".join(lines) if lines else "| — | — | — | — | — | — | 該当なし |"
+        return "\n".join(lines) if lines else "| — | — | — | — | — | — | — | 該当なし |"
 
     def ceiling_mini() -> str:
         lines = []
         for r in sorted(ceiling_units, key=lambda x: (x["model"] or "", int(x["unit"]) if str(x["unit"]).isdigit() else 0)):
             meta = model_meta[r["model"]]
+            sit = sit_by_model.get(r["model"]) or {}
+            sit_start = sit.get("sit_start")
+            note = f"座る基準ST≥{sit_start}" if sit_start is not None else "線入り＋液晶"
             lines.append(
-                f"| {r['unit']} | {r['model']} | {meta['ceiling']} / {meta['yutime']} | {st_disp(r)} | 液晶 |"
+                f"| {r['unit']} | {r['model']} | {meta['ceiling']} / {meta['yutime']} | {st_disp(r)} | "
+                f"{bd_pair(meta)} | {note} |"
             )
-        return "\n".join(lines) if lines else "| — | — | 該当なし | — | — |"
+        return "\n".join(lines) if lines else "| — | — | 該当なし | — | — | — |"
 
     # 台分析 sections
     sections = []
@@ -206,6 +337,8 @@ def analyze_one(store: str, day: str, mode: str) -> int:
         meta = model_meta[model]
         ceil_note = "あり" if meta["has_ceil"] else "なし"
         g = meta["guide"] or {}
+        sit = sit_by_model.get(model)
+        sit_line = f"／座る基準: {sit['text']}" if sit else ""
         lines = []
         for r in sorted(by_model[model], key=lambda x: int(x["unit"]) if str(x["unit"]).isdigit() else 0):
             note = "回転次第" if not meta["has_ceil"] else "遊タイム残り液晶"
@@ -218,24 +351,31 @@ def analyze_one(store: str, day: str, mode: str) -> int:
         sections.append(
             f"### {model}\n\n"
             f"天井/遊タイム: {ceil_note}（天井={g.get('ceiling') or meta['ceiling']}／"
-            f"遊={g.get('yutime') or meta['yutime']}／BD28={meta['bd28']}）\n\n"
+            f"遊={g.get('yutime') or meta['yutime']}／BD {bd_pair(meta)}{sit_line}）\n\n"
             f"| 台番号 | スタート | 大当り | 最高出玉 | 推定/250玉 | 実測/250玉 | 所見 |\n"
             f"| --- | --- | --- | --- | --- | --- | --- |\n"
             + "\n".join(lines)
         )
 
     model_sum = "\n".join(
-        f"| {m} | {model_meta[m]['count']} | {model_meta[m]['ceiling']} | {model_meta[m]['yutime']} | BD28 {model_meta[m]['bd28']} |"
+        (
+            f"| {m} | {model_meta[m]['count']} | {model_meta[m]['ceiling']} | {model_meta[m]['yutime']} | "
+            f"{bd_pair(model_meta[m])} | "
+            f"{('ST≥' + str(sit_by_model[m]['sit_start'])) if sit_by_model.get(m, {}).get('sit_start') is not None else sit_by_model.get(m, {}).get('line_note', '線入り')} |"
+        )
         for m in ceiling_models
-    ) or "| — | — | — | — | 該当なし |"
+    ) or "| — | — | — | — | — | 該当なし |"
 
     line_cands = [r for r in ceiling_units if hits_of(r) is not None and (hits_of(r) or 0) <= 2]
     line_cands.sort(key=lambda r: (hits_of(r) or 0, int(r["unit"]) if str(r["unit"]).isdigit() else 0))
     line_rows = []
     for i, r in enumerate(line_cands[:10], 1):
         meta = model_meta[r["model"]]
+        sit = sit_by_model.get(r["model"]) or {}
+        sit_start = sit.get("sit_start")
+        sit_bit = f"座る基準ST≥{sit_start}" if sit_start is not None else sit.get("line_note", "線入り")
         line_rows.append(
-            f"| {i} | {r['unit']} | {r['model']} | 当{hits_of(r)} / ST {st_disp(r)}。遊={meta['yutime']} | 液晶で残り確認 |"
+            f"| {i} | {r['unit']} | {r['model']} | 当{hits_of(r)} / ST {st_disp(r)}。{sit_bit}。BD {bd_pair(meta)} | 液晶で残り確認・線外は切 |"
         )
     if not line_rows:
         line_rows = ["| — | — | — | 線入り候補なし（ST未公開多） | 液晶巡回 |"]
@@ -250,19 +390,19 @@ def analyze_one(store: str, day: str, mode: str) -> int:
 
 **天井／遊タイム搭載機の全台**（ハイエナ候補だけに絞らない）。  
 数値詳細は [台分析](台分析.md)。割り込み順は [天井狙い目](天井狙い目.md)。  
-換金: {rate_note}。  
+換金: {rate_note}。BDは **等価と28玉を併記**（分析の玉基準は4パチ250玉交換）。  
 ソース: `{source}`
 
 ## 天井ある台（全台）
 
-| 台番号 | 機種 | 天井 | 遊タイム | スタート | 大当り | 所見 |
-| --- | --- | --- | --- | --- | --- | --- |
+| 台番号 | 機種 | 天井 | 遊タイム | スタート | 大当り | BD（等価/28玉） | 座る基準 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 {ceiling_table()}
 
 ## 機種別サマリ
 
-| 機種 | 台数 | 天井 | 遊タイム | メモ |
-| --- | --- | --- | --- | --- |
+| 機種 | 台数 | 天井 | 遊タイム | BD（等価/28玉） | 座る基準 |
+| --- | --- | --- | --- | --- | --- |
 {model_sum}
 """
 
@@ -270,7 +410,8 @@ def analyze_one(store: str, day: str, mode: str) -> int:
 
 分析日時: {now}（Asia/Tokyo）
 
-全台一覧は [天井ある台](天井ある台.md)。ここは **割り込みで座る順** だけ。
+全台一覧は [天井ある台](天井ある台.md)。ここは **割り込みで座る順** だけ。  
+BDは等価/28玉併記。線外は本命にしない。
 
 ## 線入りで座る順
 
@@ -312,22 +453,22 @@ def analyze_one(store: str, day: str, mode: str) -> int:
 
 全表は [天井ある台](天井ある台.md)。
 
-| 台番号 | 機種 | 天井/遊タイム | スタート | 所見 |
-| --- | --- | --- | --- | --- |
+| 台番号 | 機種 | 天井/遊タイム | スタート | BD（等価/28玉） | 座る基準 |
+| --- | --- | --- | --- | --- | --- |
 {ceiling_mini()}
 
 ## 総評
 
 - 通常測りは浅台・低当り優先。差玉上位は結果台として通常では座らない。
-- 天井／遊タイム機は全台掲載。線は液晶確認。
-- 推定/実測が無い台は 1000円実測で切る。
+- 天井／遊タイム機は全台掲載。線入り＋座る基準のみ割り込み。液晶必須。
+- BDは等価と28玉を併記。推定/実測が無い台は 1000円実測で切る（250玉交換基準）。
 """
 
     files[pick_name] = f"""# {store} {day} {pick_title}
 
 分析日時: {now}（Asia/Tokyo）
 
-数値は [台分析](台分析.md)。自動生成。換金: {rate_note}。
+数値は [台分析](台分析.md)。自動生成。換金: {rate_note}。BDは等価/28玉併記。
 
 ## 通常画面での打つ順番
 
@@ -337,14 +478,14 @@ def analyze_one(store: str, day: str, mode: str) -> int:
 
 ## 天井ある台
 
-| 台番号 | 機種 | 天井/遊タイム | スタート | 所見 |
-| --- | --- | --- | --- | --- |
+| 台番号 | 機種 | 天井/遊タイム | スタート | BD（等価/28玉） | 座る基準 |
+| --- | --- | --- | --- | --- | --- |
 {ceiling_mini()}
 
 ## 総評
 
 - {pick_title}も通常測りは上表優先。差玉上位は触らない。
-- 遊タイム機は線入りだけ割り込み。
+- 遊タイム機は線入り＋座る基準だけ割り込み。
 """
 
     right_rows = []
@@ -376,8 +517,8 @@ def analyze_one(store: str, day: str, mode: str) -> int:
 
 ## 天井ある台
 
-| 台番号 | 機種 | 天井/遊タイム | スタート | 所見 |
-| --- | --- | --- | --- | --- |
+| 台番号 | 機種 | 天井/遊タイム | スタート | BD（等価/28玉） | 座る基準 |
+| --- | --- | --- | --- | --- | --- |
 {ceiling_mini()}
 
 ## 触らない / 注意
@@ -393,7 +534,7 @@ def analyze_one(store: str, day: str, mode: str) -> int:
 
 対象: **{len(rows)}台 / {len(by_model)}機種**。ソース `{source}`。  
 **天井・遊タイムの有無を問わず4円全台。** 推定/実測は未整備なら `—`。  
-換金: {rate_note}。自動生成（`tools/analyze_store.py`）。
+換金: {rate_note}。BDは等価/28玉併記。自動生成（`tools/analyze_store.py`）。
 
 ## 機種別
 
@@ -403,17 +544,21 @@ def analyze_one(store: str, day: str, mode: str) -> int:
 
 詳細は [天井ある台](天井ある台.md)。
 
-| 台番号 | 機種 | 天井 | 遊タイム | スタート | 所見 |
-| --- | --- | --- | --- | --- | --- |
+| 台番号 | 機種 | 天井 | 遊タイム | スタート | BD（等価/28玉） | 座る基準 |
+| --- | --- | --- | --- | --- | --- | --- |
 {chr(10).join(
-    f"| {r['unit']} | {r['model']} | {model_meta[r['model']]['ceiling']} | {model_meta[r['model']]['yutime']} | {st_disp(r)} | 液晶 |"
+    (
+        f"| {r['unit']} | {r['model']} | {model_meta[r['model']]['ceiling']} | {model_meta[r['model']]['yutime']} | "
+        f"{st_disp(r)} | {bd_pair(model_meta[r['model']])} | "
+        f"{('ST≥' + str(sit_by_model[r['model']]['sit_start'])) if sit_by_model.get(r['model'], {}).get('sit_start') is not None else sit_by_model.get(r['model'], {}).get('line_note', '線入り')} |"
+    )
     for r in sorted(ceiling_units, key=lambda x: (x['model'] or '', int(x['unit']) if str(x['unit']).isdigit() else 0))
-) or '| — | — | — | — | — | 該当なし |'}
+) or '| — | — | — | — | — | — | 該当なし |'}
 
 ## 総評
 
 - 通常測り候補: {', '.join(f"{r['unit']}" for r in order[:4]) or 'なし'}。
-- 天井／遊タイム全台: {len(ceiling_units)}台。
+- 天井／遊タイム全台: {len(ceiling_units)}台（座る基準付き）。
 """
 
     for name, body in files.items():

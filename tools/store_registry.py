@@ -42,19 +42,32 @@ def can_collect(store: str) -> bool:
     return store in SITE777_RANK_STORES and store in SITE777_UNITS_STORES
 
 
-def resolve_targets(store_arg: str, *, site777_only: bool = False) -> list[str]:
+BATCH_ALIASES = frozenset({"all", "site777", "s7", "info", "info_only"})
+
+
+def require_one_store(store_arg: str) -> str:
+    """収集・分析は1店だけ。複数店はスクリプトを店ごとに複数回叩く。"""
     all_names = load_store_names()
-    if store_arg == "all":
-        targets = list(site777_stores() if site777_only else all_names)
-    elif store_arg in ("site777", "s7"):
-        targets = list(site777_stores())
-    elif store_arg in ("info", "info_only"):
-        targets = list(info_only_stores())
-    else:
-        if store_arg not in all_names and store_arg not in SITE777_RANK_STORES:
-            raise SystemExit(f"unknown store: {store_arg}\nknown: {', '.join(all_names)}")
-        targets = [store_arg]
-    return targets
+    if store_arg in BATCH_ALIASES:
+        raise SystemExit(
+            f"--store は1店の正規店名のみ（{store_arg} は不可）。"
+            "複数店はスクリプトを店ごとに複数回叩く。"
+            f"\nsite777: {', '.join(site777_stores())}"
+            f"\nall: {', '.join(all_names)}"
+        )
+    if store_arg not in all_names and store_arg not in SITE777_RANK_STORES:
+        raise SystemExit(f"unknown store: {store_arg}\nknown: {', '.join(all_names)}")
+    return store_arg
+
+
+def resolve_targets(store_arg: str, *, site777_only: bool = False) -> list[str]:
+    """互換用。作業コマンドは require_one_store を使う。"""
+    if store_arg in BATCH_ALIASES or site777_only:
+        raise SystemExit(
+            "バッチ指定は廃止。1店ずつスクリプトを叩く。"
+            f"\nsite777: {', '.join(site777_stores())}"
+        )
+    return [require_one_store(store_arg)]
 
 
 def main() -> int:

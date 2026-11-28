@@ -8,7 +8,11 @@
 
 例:
   python3 tools/analyze_store.py --store 楽園池袋店
-  python3 tools/analyze_store.py --store all --mode afternoon
+  python3 tools/analyze_store.py --store 楽園町田店 --mode afternoon
+  # 複数店は店ごとに叩く
+  for s in 楽園池袋店 楽園町田店; do
+    python3 tools/analyze_store.py --store "$s" --mode afternoon
+  done
 """
 
 from __future__ import annotations
@@ -25,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import brief  # noqa: E402
-from store_registry import can_collect, load_store_names, resolve_targets  # noqa: E402
+from store_registry import can_collect, require_one_store  # noqa: E402
 
 TZ = ZoneInfo("Asia/Tokyo")
 
@@ -424,22 +428,18 @@ def analyze_one(store: str, day: str, mode: str) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--store", default="all", help="店名 / all / site777 / info")
+    ap.add_argument("--store", required=True, help="正規店名（1店のみ。複数店はスクリプトを複数回叩く）")
     ap.add_argument("--day", default="")
     ap.add_argument("--mode", choices=["morning", "afternoon", "adhoc"], default="adhoc")
-    ap.add_argument("--site777-only", action="store_true")
     args = ap.parse_args()
     day = args.day or default_day()
     mode = "morning" if args.mode == "morning" else "afternoon"
-    targets = resolve_targets(args.store, site777_only=args.site777_only)
-    failures = 0
-    for store in targets:
-        try:
-            failures += analyze_one(store, day, mode)
-        except SystemExit as e:
-            print(e, file=sys.stderr)
-            failures += 1
-    return 1 if failures else 0
+    store = require_one_store(args.store)
+    try:
+        return analyze_one(store, day, mode)
+    except SystemExit as e:
+        print(e, file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

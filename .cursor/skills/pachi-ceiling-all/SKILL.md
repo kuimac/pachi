@@ -31,7 +31,7 @@ description: >-
 
 ## スクリプト
 
-通常は `python3 tools/analyze_store.py --store <店>`（または `run_pachi.py --analyze`）が `天井ある台.md` と各判断の同名セクションを自動出力する。エージェントはスクリプト結果の欠落確認だけする。
+通常は `python3 tools/analyze_store.py --store <店>`（または `run_pachi.py --store <店> --analyze`）が `天井ある台.md` と各判断の同名セクションを自動出力する。1店ずつ。複数店はスクリプトを複数回。エージェントはスクリプト結果の欠落確認だけする。
 
 ## やらないこと
 

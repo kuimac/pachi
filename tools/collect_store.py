@@ -15,6 +15,7 @@
   python3 tools/collect_store.py --store 楽園池袋店
   python3 tools/collect_store.py --store 楽園池袋店 --publish
   python3 tools/collect_store.py --store all --mode morning --publish
+  python3 tools/run_pachi.py --store all --collect --analyze --publish
   ./tools/mac_keepalive_fetch.sh --store 楽園町田店 --publish
 """
 
@@ -26,6 +27,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -34,18 +36,11 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 TZ = ZoneInfo("Asia/Tokyo")
 
-# Site Seven 登録店（prefetch / fetch と同期）
-SITE777_STORES = [
-    "中山UNO",
-    "中山ZoRoN",
-    "エスパス日拓西武新宿駅前店",
-    "楽園町田店",
-    "楽園渋谷駅前店",
-    "楽園渋谷道玄坂店",
-    "エスパス日拓渋谷駅前新館",
-    "楽園池袋店",
-    "楽園池袋店グリーンサイド",
-]
+# Site Seven 登録店は store_registry（prefetch / fetch と同期）
+sys.path.insert(0, str(ROOT / "tools"))
+from store_registry import site777_stores  # noqa: E402
+
+SITE777_STORES = site777_stores()
 
 
 def now_tokyo() -> datetime:
@@ -241,7 +236,8 @@ def main() -> int:
     ap.add_argument("--store", default="all", help="店名 or all")
     ap.add_argument("--day", default="", help="YYYY-MM-DD（省略時は JST・10時前は前日）")
     ap.add_argument("--mode", choices=["morning", "adhoc"], default="adhoc")
-    ap.add_argument("--sleep", type=float, default=1.0)
+    ap.add_argument("--sleep", type=float, default=1.5, help="HTTP リクエスト間隔（秒）")
+    ap.add_argument("--between-stores", type=float, default=45.0, help="店と店のあいだの待機（秒）")
     ap.add_argument("--retries", type=int, default=3)
     ap.add_argument("--retry-backoff", type=float, default=60.0)
     ap.add_argument("--publish", action="store_true", help="取得後に publish.sh")
@@ -249,17 +245,21 @@ def main() -> int:
     args = ap.parse_args()
 
     day = args.day or default_day()
+    known = site777_stores()
     if args.store == "all":
-        targets = list(SITE777_STORES)
-    elif args.store in SITE777_STORES:
+        targets = list(known)
+    elif args.store in known:
         targets = [args.store]
     else:
         print(f"unknown store: {args.store}", file=sys.stderr)
-        print("known:", ", ".join(SITE777_STORES), file=sys.stderr)
+        print("known:", ", ".join(known), file=sys.stderr)
         return 2
 
     failures = 0
-    for store in targets:
+    for i, store in enumerate(targets):
+        if i and args.between_stores > 0:
+            print(f"[wait] between stores {args.between_stores:.0f}s ...", flush=True)
+            time.sleep(args.between_stores)
         code = collect_one(
             store,
             day=day,

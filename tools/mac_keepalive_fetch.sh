@@ -10,6 +10,7 @@
 #   ./tools/mac_keepalive_fetch.sh --loop 3600     # 1時間おき（caffeinate 付き）
 #   ./tools/mac_keepalive_fetch.sh --store 中山UNO --publish
 #   python3 tools/collect_store.py --store 楽園池袋店 --publish
+#   python3 tools/run_pachi.py --store all --collect --analyze --publish
 #
 # launchd 例: tools/macos/com.kuimac.pachi.fetch.plist
 set -euo pipefail
@@ -22,20 +23,24 @@ LOOP_SEC=0
 DO_PUBLISH=0
 MODE="adhoc"
 DAY=""
-SLEEP="1.0"
+SLEEP="1.5"
+BETWEEN="45"
 RETRIES="3"
+ANALYZE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --store) STORE="$2"; shift 2 ;;
     --loop) LOOP_SEC="$2"; shift 2 ;;
     --publish) DO_PUBLISH=1; shift ;;
+    --analyze) ANALYZE=1; shift ;;
     --mode) MODE="$2"; shift 2 ;;
     --day) DAY="$2"; shift 2 ;;
     --sleep) SLEEP="$2"; shift 2 ;;
+    --between-stores) BETWEEN="$2"; shift 2 ;;
     --retries) RETRIES="$2"; shift 2 ;;
     -h|--help)
-      sed -n '2,16p' "$0"
+      sed -n '2,17p' "$0"
       exit 0
       ;;
     *)
@@ -46,7 +51,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_once() {
-  local args=(--store "$STORE" --mode "$MODE" --sleep "$SLEEP" --retries "$RETRIES")
+  if [[ "$ANALYZE" -eq 1 ]]; then
+    local args=(--store "$STORE" --mode "$MODE" --sleep "$SLEEP" --between-stores "$BETWEEN" --retries "$RETRIES" --collect --analyze)
+    if [[ -n "$DAY" ]]; then
+      args+=(--day "$DAY")
+    fi
+    if [[ "$DO_PUBLISH" -eq 1 ]]; then
+      args+=(--publish)
+    fi
+    echo "[mac-fetch] $(TZ=Asia/Tokyo date '+%F %T') store=$STORE mode=$MODE -> run_pachi.py"
+    python3 tools/run_pachi.py "${args[@]}"
+    return
+  fi
+  local args=(--store "$STORE" --mode "$MODE" --sleep "$SLEEP" --between-stores "$BETWEEN" --retries "$RETRIES")
   if [[ -n "$DAY" ]]; then
     args+=(--day "$DAY")
   fi

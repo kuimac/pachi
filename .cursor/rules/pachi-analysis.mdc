@@ -12,4 +12,5 @@ alwaysApply: true
 - 分析MDは `YYYY-MM-DD/正規店名/`。見出し直後に `分析日時: YYYY-MM-DD HH:MM（Asia/Tokyo）`。
 - 過去日の判断はスナップショット（書き換えない）。追っかけ更新は当日フォルダだけ。店舗ページは当日の判断と過去の判断を分けて出す。
 - 店舗一覧の全文、攻略の全文、台CSV、`docs/` は開かない。数値は `python3 tools/brief.py`。手順は skill `pachi-run`。
+- 収集・分析は会話ではなく `python3 tools/run_pachi.py`（`--sleep` / `--between-stores`）。個別は `collect_store.py` / `analyze_store.py`。
 - 分析後は `tools/publish.sh` まで。秘密と `.env` は commit しない。
